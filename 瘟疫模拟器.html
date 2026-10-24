@@ -1,0 +1,4453 @@
+<!-- 瘟疫 · 传播模拟 / 单文件版 · 无外部依赖 -->
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<meta name="description" content="瘟疫 · 传播模拟：六城邦 SEIRD 沙盘，调节病原体与环境参数，观察一场瘟疫如何发生。">
+<title>瘟疫 · 传播模拟</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%239d3026'/%3E%3Ccircle cx='16' cy='16' r='7' fill='%23e9e0cf'/%3E%3C/svg%3E">
+<style>
+/* ============================================================
+   瘟疫 · 传播模拟 — 视觉样式
+   ============================================================ */
+:root {
+  --bg: #070c10;
+  --bg-2: #0a1116;
+  --panel: #0c1419;
+  --panel-2: #0f191f;
+  --line: #1c2932;
+  --line-soft: #142028;
+  --text: #dce3e3;
+  --muted: #8497a0;
+  --dim: #5a6c75;
+  --bone: #e9e0cf;
+  --red: #e05a49;
+  --red-soft: #c65142;
+  --amber: #dfa84e;
+  --teal: #48a193;
+  --blue: #6e93a8;
+  --seal: #a8362b;
+
+  --serif: "Songti SC", "Noto Serif SC", "Source Han Serif SC", "SimSun", Georgia, serif;
+  --sans: "Inter", "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --mono: "JetBrains Mono", "SFMono-Regular", "Cascadia Mono", Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+html, body { height: 100%; }
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 700px at 72% -10%, rgba(78, 36, 29, 0.18), transparent 60%),
+    radial-gradient(900px 600px at 20% 110%, rgba(23, 54, 59, 0.22), transparent 60%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+canvas { display: block; }
+
+.grain {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0.028;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+::selection { background: rgba(224, 90, 73, 0.35); }
+
+.app {
+  display: grid;
+  grid-template-columns: 332px minmax(0, 1fr);
+  height: 100vh;
+}
+
+/* ================= 左侧控制台 ================= */
+.rail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background:
+    linear-gradient(180deg, rgba(224, 90, 73, 0.04), transparent 220px),
+    linear-gradient(180deg, #0b1318, #080f13);
+  border-right: 1px solid var(--line);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 18px 14px;
+}
+
+.seal {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-family: var(--serif);
+  font-size: 22px;
+  color: #f0d9cf;
+  background: linear-gradient(155deg, #9d3026, #6d2019);
+  border: 1px solid #c25a49;
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.28), 0 6px 18px rgba(120, 32, 24, 0.3);
+  letter-spacing: 0;
+}
+
+.brand-text { flex: 1; min-width: 0; }
+.brand h1 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  line-height: 1.1;
+  color: #f0e9db;
+}
+.brand p {
+  margin: 3px 0 0;
+  font-size: 8.5px;
+  letter-spacing: 0.26em;
+  color: var(--dim);
+}
+
+.icon-btn {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--serif);
+  font-size: 13px;
+  line-height: 1;
+  transition: 0.18s ease;
+}
+.icon-btn:hover { color: var(--bone); border-color: #3a4c56; background: #101b22; }
+.icon-btn:focus-visible, .btn:focus-visible, .tab:focus-visible, .preset:focus-visible, .speeds button:focus-visible {
+  outline: 1px solid var(--red);
+  outline-offset: 2px;
+}
+
+.rail-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--line);
+}
+.tab {
+  position: relative;
+  flex: 1;
+  padding: 9px 0 11px;
+  background: none;
+  border: 0;
+  color: var(--dim);
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  transition: color 0.18s ease;
+}
+.tab:hover { color: var(--muted); }
+.tab.active { color: var(--bone); }
+.tab.active::after {
+  content: "";
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: -1px;
+  height: 1px;
+  background: var(--red);
+  box-shadow: 0 0 8px rgba(224, 90, 73, 0.6);
+}
+
+.rail-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 12px 18px 22px;
+  scrollbar-width: thin;
+  scrollbar-color: #25343d transparent;
+}
+.rail-scroll::-webkit-scrollbar { width: 6px; }
+.rail-scroll::-webkit-scrollbar-thumb { background: #25343d; border-radius: 6px; }
+.rail-scroll::-webkit-scrollbar-track { background: transparent; }
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; animation: fade-in 0.25s ease; }
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: none; }
+}
+
+.section-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 17px 0 8px;
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  color: #91a2aa;
+}
+.section-label:first-child { margin-top: 2px; }
+.section-label span {
+  font-size: 7.5px;
+  letter-spacing: 0.2em;
+  color: #3f4f58;
+  font-family: var(--mono);
+}
+
+/* 预设 */
+.preset-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.preset {
+  position: relative;
+  padding: 8px 9px 7px;
+  text-align: left;
+  border: 1px solid #1c2a32;
+  border-radius: 2px;
+  background: #0c151a;
+  color: var(--muted);
+  transition: 0.16s ease;
+  overflow: hidden;
+}
+.preset:hover { border-color: #30424c; color: var(--text); background: #0f1a20; }
+.preset.active {
+  border-color: #6d3129;
+  background: linear-gradient(160deg, rgba(224, 90, 73, 0.14), rgba(224, 90, 73, 0.02) 70%);
+  color: var(--bone);
+}
+.preset.active::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: var(--red);
+}
+.p-name {
+  display: block;
+  font-family: var(--serif);
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  line-height: 1.3;
+}
+.p-era {
+  display: block;
+  margin-top: 2px;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.02em;
+  color: #53646d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 档案 */
+.dossier {
+  position: relative;
+  margin-top: 10px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-left: 2px solid #5b2b26;
+  background:
+    linear-gradient(135deg, rgba(224, 90, 73, 0.05), transparent 55%),
+    #0b1419;
+}
+.dossier-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 11px;
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+.dossier-summary::-webkit-details-marker { display: none; }
+.dossier-summary:hover .dossier-summary-title { color: #a8b8bd; }
+.dossier-summary-title {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: #7f929a;
+  transition: color 0.15s ease;
+}
+.dossier-summary::after {
+  content: "＋";
+  font-family: var(--mono);
+  font-size: 10px;
+  color: #8a6453;
+}
+.dossier[open] .dossier-summary::after { content: "−"; }
+.dossier-body { padding: 0 12px 10px; }
+.dossier-body .dossier-note { margin-top: 0; }
+.dossier-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.dossier-en {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.16em;
+  color: #586a73;
+}
+.era-chip {
+  font-size: 8.5px;
+  letter-spacing: 0.06em;
+  color: #b9876f;
+  border: 1px solid #3c2b27;
+  padding: 1px 5px;
+  border-radius: 2px;
+}
+.dossier-note {
+  margin: 7px 0 7px;
+  font-family: var(--serif);
+  font-size: 11.5px;
+  line-height: 1.62;
+  color: #b6c4c6;
+}
+.dossier ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dossier li {
+  position: relative;
+  padding-left: 9px;
+  margin-top: 3px;
+  font-size: 9.5px;
+  line-height: 1.55;
+  color: #738892;
+}
+.dossier li::before {
+  content: "·";
+  position: absolute;
+  left: 0;
+  color: #9a5045;
+}
+.dossier-table {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  margin-top: 9px;
+  background: #1a272f;
+  border: 1px solid #1a272f;
+}
+.dossier-table div { background: #0b1419; padding: 5px 6px; }
+.dossier-table dt {
+  font-size: 7.5px;
+  letter-spacing: 0.1em;
+  color: #4f626b;
+  font-family: var(--mono);
+}
+.dossier-table dd {
+  margin: 2px 0 0;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: #b9c6c6;
+}
+
+.dossier-more {
+  margin-top: 8px;
+  padding-top: 6px;
+  border-top: 1px solid #17242b;
+}
+.dossier-more summary {
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  font-size: 8.5px;
+  letter-spacing: 0.04em;
+  color: #6e828b;
+}
+.dossier-more summary::-webkit-details-marker { display: none; }
+.dossier-more summary::after {
+  content: "＋";
+  font-family: var(--mono);
+  font-size: 9px;
+  color: #8a6453;
+}
+.dossier-more[open] summary::after { content: "−"; }
+.dossier-more ul {
+  margin: 7px 0 1px;
+  padding: 0;
+  list-style: none;
+}
+
+.more-params {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid #17242b;
+}
+.more-params summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 0;
+  cursor: pointer;
+  font-size: 10px;
+  color: #7f939b;
+}
+.more-params summary::-webkit-details-marker { display: none; }
+.more-params summary::before {
+  content: "＋";
+  font-family: var(--mono);
+  font-size: 10px;
+  color: #9a6553;
+}
+.more-params[open] summary::before { content: "−"; }
+
+/* 控件 */
+.controls { display: flex; flex-direction: column; gap: 10px; }
+.control-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+.control-top label {
+  font-size: 11px;
+  color: #a7b6bb;
+  letter-spacing: 0.02em;
+}
+.control-top output {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: var(--bone);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.control-hint {
+  margin-top: 2px;
+  font-size: 8.8px;
+  line-height: 1.45;
+  color: #4e6069;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 16px;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #a84a3e 0%, #a84a3e var(--p, 50%), #213039 var(--p, 50%), #213039 100%);
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px;
+  height: 11px;
+  margin-top: -4.5px;
+  border-radius: 50%;
+  background: var(--bone);
+  border: 1px solid #795044;
+  box-shadow: 0 0 0 3px rgba(224, 90, 73, 0.08);
+  transition: box-shadow 0.15s ease;
+}
+input[type="range"]:hover::-webkit-slider-thumb { box-shadow: 0 0 0 5px rgba(224, 90, 73, 0.14); }
+input[type="range"]::-moz-range-track {
+  height: 2px;
+  border-radius: 2px;
+  background: #213039;
+}
+input[type="range"]::-moz-range-progress { height: 2px; background: #a84a3e; }
+input[type="range"]::-moz-range-thumb {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--bone); border: 1px solid #795044;
+}
+input[type="range"]:focus-visible { outline: none; }
+input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 5px rgba(224, 90, 73, 0.28); }
+
+select {
+  width: 100%;
+  appearance: none;
+  padding: 7px 26px 7px 9px;
+  border: 1px solid #24343d;
+  border-radius: 2px;
+  background:
+    linear-gradient(45deg, transparent 50%, #61757f 50%) calc(100% - 13px) 52% / 4px 4px no-repeat,
+    linear-gradient(135deg, #61757f 50%, transparent 50%) calc(100% - 9px) 52% / 4px 4px no-repeat,
+    #0d171c;
+  color: #b9c6c8;
+  font-size: 11px;
+  cursor: pointer;
+}
+select:focus-visible { outline: 1px solid var(--red); outline-offset: 1px; }
+
+.check-row, .switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid #131f26;
+  cursor: pointer;
+}
+.check-row:last-child, .switch-row:last-child { border-bottom: 0; }
+.sw-text { min-width: 0; }
+.sw-title {
+  display: block;
+  font-size: 11px;
+  color: #b1bfc2;
+}
+.sw-desc {
+  display: block;
+  margin-top: 2px;
+  font-size: 8.5px;
+  line-height: 1.45;
+  color: #556872;
+}
+.switch {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 18px;
+  border-radius: 20px;
+  border: 1px solid #263741;
+  background: #101b21;
+  transition: 0.18s ease;
+  cursor: pointer;
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  top: 2px;
+  left: 3px;
+  border-radius: 50%;
+  background: #6a7f89;
+  transition: 0.18s ease;
+}
+.switch:checked {
+  background: rgba(224, 90, 73, 0.22);
+  border-color: #753a31;
+}
+.switch:checked::after {
+  transform: translateX(14px);
+  background: #f0a394;
+}
+.switch:focus-visible { outline: 1px solid var(--red); outline-offset: 2px; }
+
+.sub-control {
+  display: none;
+  margin: 0 0 4px 3px;
+  padding: 3px 0 3px 10px;
+  border-left: 1px solid #27363e;
+}
+.sub-control.show { display: block; animation: fade-in 0.2s ease; }
+
+.action-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 12px;
+}
+
+.rail-note {
+  margin: 12px 0 0;
+  font-size: 9px;
+  line-height: 1.65;
+  color: #4d5f68;
+  border-left: 1px solid #26343d;
+  padding-left: 8px;
+}
+
+/* 城市气温 */
+.city-temps {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  border: 1px solid #1a272f;
+  background: #1a272f;
+}
+.city-temp {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 8px;
+  background: #0b1419;
+  font-size: 9.5px;
+  color: #8498a1;
+}
+.city-temp b {
+  font-family: var(--mono);
+  font-weight: 400;
+  font-size: 10px;
+  color: #c7d2d1;
+}
+.city-temp.cold b { color: #83b0c7; }
+.city-temp.hot b { color: #d9a06e; }
+
+.rail-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 18px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 7.5px;
+  letter-spacing: 0.08em;
+  color: #3f4f57;
+}
+
+/* ================= 主舞台 ================= */
+.stage {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  gap: 12px;
+  min-height: 0;
+  padding: 13px 18px 15px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  min-height: 50px;
+}
+.title-block { flex: 1; min-width: 0; }
+.eyebrow {
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.22em;
+  color: #556872;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 3px;
+}
+.title-row h2 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 25px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #ece5d7;
+  white-space: nowrap;
+}
+.era {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  color: #8a6a5b;
+  border: 1px solid #352823;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.transport { display: flex; align-items: center; gap: 8px; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 31px;
+  padding: 0 13px;
+  border-radius: 2px;
+  border: 1px solid #26363f;
+  background: #0d171d;
+  color: #a9b7bb;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  transition: 0.16s ease;
+  white-space: nowrap;
+}
+.btn:hover { border-color: #3b4e58; color: var(--bone); background: #111d24; }
+.btn.primary {
+  border-color: #6f342c;
+  background: linear-gradient(180deg, rgba(224, 90, 73, 0.24), rgba(224, 90, 73, 0.1));
+  color: #f3d3ca;
+  min-width: 78px;
+}
+.btn.primary:hover { border-color: #a8503f; background: linear-gradient(180deg, rgba(224, 90, 73, 0.34), rgba(224, 90, 73, 0.14)); }
+.btn.primary #playIcon { font-size: 8px; letter-spacing: 0; }
+.btn.ghost { background: transparent; }
+.btn.wide { width: 100%; }
+.btn:active { transform: translateY(1px); }
+
+.speeds {
+  display: flex;
+  border: 1px solid #22313a;
+  border-radius: 2px;
+  overflow: hidden;
+  height: 31px;
+}
+.speeds button {
+  width: 31px;
+  height: 100%;
+  border: 0;
+  border-right: 1px solid #1d2b34;
+  background: #0b1419;
+  color: #5f737d;
+  font-family: var(--mono);
+  font-size: 9px;
+  transition: 0.15s ease;
+}
+.speeds button:last-child { border-right: 0; }
+.speeds button:hover { color: var(--text); background: #111c22; }
+.speeds button.active { color: #f0c7bd; background: rgba(224, 90, 73, 0.15); }
+
+.topbar-help { display: none; }
+
+.clock {
+  flex: none;
+  min-width: 128px;
+  text-align: right;
+  padding-left: 18px;
+  border-left: 1px solid #1c2a32;
+}
+.day {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 5px;
+  color: #657982;
+  font-size: 10px;
+}
+.day b {
+  font-family: var(--mono);
+  font-size: 25px;
+  font-weight: 400;
+  color: var(--bone);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  min-width: 42px;
+  text-align: right;
+}
+.clock-sub {
+  margin-top: 4px;
+  font-size: 8.5px;
+  color: #4f626b;
+  white-space: nowrap;
+}
+
+/* HUD */
+.hud {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 1px;
+  border: 1px solid var(--line);
+  background: var(--line);
+}
+.stat {
+  position: relative;
+  min-width: 0;
+  padding: 9px 12px 10px;
+  background: linear-gradient(180deg, #0c151a, #0a1217);
+}
+.stat-label {
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: #71848d;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stat-label em { font-style: normal; font-family: var(--mono); color: #93a6ad; }
+.stat-value {
+  margin-top: 2px;
+  font-family: var(--mono);
+  font-size: 24px;
+  line-height: 1.15;
+  font-weight: 400;
+  color: #dde4e3;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.stat-value small {
+  font-size: 11px;
+  color: #5f727b;
+  margin-left: 1px;
+}
+.stat-value.accent-red { color: #ef7b6a; }
+.stat-value.accent-bone { color: #cbbca6; }
+.stat-value.accent-teal { color: #6fbfae; }
+.stat-value.accent-amber { color: #e3b666; }
+.stat-sub {
+  margin-top: 3px;
+  font-size: 8.5px;
+  color: #556871;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bed-bar {
+  height: 3px;
+  margin-top: 8px;
+  background: #1b2831;
+  overflow: hidden;
+}
+.bed-bar i {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: #5c8f86;
+  transition: width 0.4s ease, background 0.4s ease;
+}
+.bed-bar i.warn { background: var(--amber); }
+.bed-bar i.over { background: var(--red); box-shadow: 0 0 8px rgba(224, 90, 73, 0.7); }
+
+/* 地图 */
+.map-panel {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid #1b2931;
+  background: #070d11;
+  box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.55);
+}
+.map-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 90px rgba(0, 0, 0, 0.65);
+}
+#map { width: 100%; height: 100%; cursor: crosshair; }
+
+.map-overlay {
+  position: absolute;
+  left: 0; right: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  pointer-events: none;
+  padding: 11px 14px;
+}
+.map-overlay.top {
+  top: 0;
+  background: linear-gradient(180deg, rgba(5, 9, 12, 0.85), transparent);
+}
+.map-overlay.bottom {
+  bottom: 0;
+  padding-bottom: 9px;
+  background: linear-gradient(0deg, rgba(5, 9, 12, 0.8), transparent);
+}
+.legend { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 8.5px;
+  letter-spacing: 0.04em;
+  color: #72868f;
+  white-space: nowrap;
+}
+.dot { width: 5px; height: 5px; border-radius: 50%; display: inline-block; }
+.dot.s { background: #6d8494; }
+.dot.e { background: #dfa84e; }
+.dot.i { background: #e05a49; box-shadow: 0 0 5px rgba(224, 90, 73, 0.8); }
+.dot.r { background: #48a193; }
+.dot.d { background: #6d3b39; }
+.map-hint {
+  font-size: 8.5px;
+  letter-spacing: 0.06em;
+  color: #5f7179;
+  white-space: nowrap;
+}
+.map-meta {
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.08em;
+  color: #4e6169;
+}
+.map-scale {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 7.5px;
+  color: #4e6169;
+}
+.map-scale i {
+  display: block;
+  width: 46px;
+  height: 4px;
+  border-left: 1px solid #5a6e77;
+  border-right: 1px solid #5a6e77;
+  border-bottom: 1px solid #5a6e77;
+}
+
+.city-tip {
+  position: absolute;
+  z-index: 8;
+  min-width: 168px;
+  max-width: 220px;
+  padding: 9px 11px;
+  background: rgba(8, 14, 18, 0.96);
+  border: 1px solid #2c3d46;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+.city-tip .tip-name {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  font-family: var(--serif);
+  font-size: 14px;
+  color: var(--bone);
+  letter-spacing: 0.04em;
+}
+.city-tip .tip-name span {
+  font-family: var(--mono);
+  font-size: 8px;
+  color: #5a6d76;
+  letter-spacing: 0.1em;
+}
+.city-tip .tip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+  font-size: 9.5px;
+  color: #71848d;
+}
+.city-tip .tip-row b {
+  font-family: var(--mono);
+  font-weight: 400;
+  color: #c3cecd;
+}
+.city-tip .tip-note {
+  margin-top: 6px;
+  padding-top: 5px;
+  border-top: 1px solid #1e2b33;
+  font-size: 8.5px;
+  color: #556872;
+  line-height: 1.5;
+}
+.city-tip .tip-note.warn { color: #d8998e; }
+
+/* ================= 底部 ================= */
+.bottom {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 12px;
+  height: clamp(180px, 24vh, 235px);
+  min-height: 0;
+}
+.chart-panel, .log-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #0b1419, #091116);
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 11px 6px;
+  border-bottom: 1px solid #16232b;
+  flex: none;
+}
+.panel-title {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: #93a4aa;
+  white-space: nowrap;
+}
+.panel-title span {
+  margin-left: 7px;
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.14em;
+  color: #40515a;
+}
+.panel-hint {
+  font-family: var(--mono);
+  font-size: 8px;
+  color: #4e626b;
+  white-space: nowrap;
+}
+.chart-legend { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 8px;
+  color: #637780;
+  white-space: nowrap;
+}
+.line { width: 11px; height: 1px; display: inline-block; background: #8ea1a7; }
+.line.red { background: #e05a49; height: 2px; }
+.line.amber { background: #dfa84e; }
+.line.bone { background: #cbbca6; }
+.line.dashed { background: repeating-linear-gradient(90deg, #dfa84e 0 3px, transparent 3px 5px); }
+.bar { width: 7px; height: 7px; background: rgba(224, 90, 73, 0.4); display: inline-block; }
+
+.chart-body { position: relative; flex: 1; min-height: 0; }
+#chart { width: 100%; height: 100%; }
+
+.chart-tip {
+  position: absolute;
+  z-index: 5;
+  min-width: 148px;
+  padding: 7px 9px;
+  background: rgba(8, 14, 18, 0.96);
+  border: 1px solid #2c3d46;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  font-size: 9px;
+  color: #93a4aa;
+}
+.chart-tip .ct-day {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--bone);
+  margin-bottom: 4px;
+  letter-spacing: 0.04em;
+}
+.chart-tip .ct-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  margin-top: 2px;
+}
+.chart-tip .ct-row b { font-family: var(--mono); font-weight: 400; color: #ccd6d4; }
+
+.log-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 11px 8px;
+  scrollbar-width: thin;
+  scrollbar-color: #25343d transparent;
+}
+.log-list::-webkit-scrollbar { width: 5px; }
+.log-list::-webkit-scrollbar-thumb { background: #25343d; }
+.log-empty {
+  padding: 22px 4px;
+  font-size: 9.5px;
+  line-height: 1.7;
+  color: #465861;
+}
+.log-item {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 7px;
+  padding: 5px 0 6px;
+  border-bottom: 1px solid #121e25;
+  animation: fade-in 0.25s ease;
+}
+.log-item:last-child { border-bottom: 0; }
+.log-day {
+  font-family: var(--mono);
+  font-size: 8.5px;
+  color: #4f626b;
+  padding-top: 2px;
+}
+.log-title {
+  font-size: 10px;
+  line-height: 1.35;
+  color: #aebcc0;
+}
+.log-detail {
+  margin-top: 2px;
+  font-size: 8.5px;
+  line-height: 1.5;
+  color: #5c7079;
+}
+.log-item.danger .log-title { color: #e89080; }
+.log-item.warn .log-title { color: #dcb071; }
+.log-item.good .log-title { color: #72b8a9; }
+.log-item.seed .log-title { color: #b493c0; }
+
+/* Toast */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  z-index: 90;
+  transform: translate(-50%, 12px);
+  padding: 8px 14px;
+  border: 1px solid #3b2c27;
+  background: rgba(12, 18, 22, 0.95);
+  color: #cfc3b2;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  opacity: 0;
+  pointer-events: none;
+  transition: 0.25s ease;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* 帮助 */
+.help-dialog {
+  width: min(760px, 92vw);
+  max-height: 86vh;
+  padding: 0;
+  border: 1px solid #2b3b43;
+  background: linear-gradient(180deg, #0c151a, #080f13);
+  color: var(--text);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.7);
+}
+.help-dialog::backdrop {
+  background: rgba(2, 5, 7, 0.72);
+  backdrop-filter: blur(4px);
+}
+.help-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.help-head h2 {
+  margin: 5px 0 0;
+  font-family: var(--serif);
+  font-size: 23px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: #ece4d5;
+}
+.help-body {
+  padding: 4px 24px 10px;
+  overflow-y: auto;
+  max-height: calc(86vh - 135px);
+}
+.help-body section { padding: 12px 0; border-bottom: 1px solid #142028; }
+.help-body section:last-child { border-bottom: 0; }
+.help-body h3 {
+  margin: 0 0 6px;
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  color: #c9b9a5;
+  font-weight: 500;
+}
+.help-body p, .help-body li {
+  font-size: 11.5px;
+  line-height: 1.75;
+  color: #93a6ac;
+}
+.help-body p { margin: 0; }
+.help-body ul { margin: 0; padding-left: 16px; }
+.help-body li { margin-bottom: 4px; }
+.help-body b { color: #c7d3d2; font-weight: 500; }
+.help-body kbd {
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 1px 4px;
+  border: 1px solid #34454e;
+  background: #101b21;
+  color: #c2cfce;
+}
+.help-body pre {
+  margin: 8px 0 10px;
+  padding: 9px 11px;
+  border: 1px solid #22323a;
+  background: #0a1318;
+  font-family: var(--mono);
+  font-size: 10.5px;
+  color: #c8b493;
+  overflow-x: auto;
+}
+.help-dl { margin: 0; display: grid; gap: 7px; }
+.help-dl div { display: grid; grid-template-columns: 84px 1fr; gap: 10px; }
+.help-dl dt {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: #c1a98b;
+  padding-top: 1px;
+}
+.help-dl dd { margin: 0; font-size: 10.5px; line-height: 1.65; color: #8499a0; }
+.help-warn {
+  margin: 8px 0 12px;
+  padding: 10px 12px !important;
+  border: 1px solid #3a2a25 !important;
+  background: rgba(224, 90, 73, 0.05);
+}
+.help-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 24px;
+  border-top: 1px solid var(--line);
+}
+.help-foot span { font-family: var(--mono); font-size: 8px; color: #465861; letter-spacing: 0.04em; }
+
+/* ================= 响应式 ================= */
+@media (max-width: 1280px) {
+  .app { grid-template-columns: 312px minmax(0, 1fr); }
+  .stage { padding: 12px 14px; gap: 10px; }
+  .stat { padding: 8px 10px 9px; }
+  .stat-value { font-size: 22px; }
+  .bottom { grid-template-columns: minmax(0, 1fr) 270px; }
+  .brand h1 { font-size: 21px; }
+  .title-row h2 { font-size: 23px; }
+}
+
+@media (max-width: 1180px) {
+  body { overflow: auto; }
+  .app { grid-template-columns: 1fr; height: auto; min-height: 100vh; }
+  .stage { order: 1; height: auto; min-height: 0; grid-template-rows: auto auto minmax(380px, 58vh) auto; }
+  .rail { order: 2; border-right: 0; border-top: 1px solid var(--line); }
+  .rail-scroll { overflow: visible; }
+  .rail-tabs { position: sticky; top: 0; background: #0a1217; z-index: 4; }
+  .tab-panel.active { max-width: 720px; }
+  .preset-grid { grid-template-columns: repeat(4, 1fr); }
+  .bottom { grid-template-columns: minmax(0, 1fr) 320px; height: 220px; }
+  .rail-foot { justify-content: flex-start; gap: 18px; }
+  .topbar-help { display: grid; width: 31px; height: 31px; border-radius: 2px; }
+}
+
+@media (max-width: 900px) {
+  .topbar { flex-wrap: wrap; gap: 10px; }
+  .title-block { flex: 1 1 55%; }
+  .transport { order: 3; }
+  .clock { order: 2; margin-left: auto; }
+  .hud { grid-template-columns: repeat(3, 1fr); }
+  .stage { grid-template-rows: auto auto 58vh auto; }
+  .bottom { grid-template-columns: 1fr; height: auto; }
+  .chart-panel { height: 220px; }
+  .log-panel { height: 210px; }
+  .preset-grid { grid-template-columns: repeat(3, 1fr); }
+  .help-dl div { grid-template-columns: 72px 1fr; }
+}
+
+@media (max-width: 620px) {
+  .stage { padding: 10px 10px 14px; gap: 9px; grid-template-rows: auto auto auto auto; }
+  .map-panel { height: 62vw; min-height: 226px; max-height: 330px; }
+  .brand { padding: 13px 14px 11px; }
+  .rail-tabs { padding: 0 14px; }
+  .rail-scroll { padding: 10px 14px 18px; }
+  .hud { grid-template-columns: repeat(2, 1fr); }
+  .stat-value { font-size: 21px; }
+  .map-hint, .eyebrow { display: none; }
+  .title-row h2 { font-size: 21px; }
+  .speeds button { width: 27px; }
+  .btn { height: 29px; padding: 0 10px; }
+  .clock { min-width: 98px; padding-left: 10px; }
+  .day b { font-size: 21px; }
+  .preset-grid { grid-template-columns: repeat(2, 1fr); }
+  .bottom { gap: 9px; }
+  .chart-panel { height: 190px; }
+  .chart-legend { display: none; }
+  .help-head, .help-body, .help-foot { padding-left: 16px; padding-right: 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.001ms !important; transition-duration: 0.001ms !important; }
+}
+
+</style>
+</head>
+<body>
+<div class="grain" aria-hidden="true"></div>
+
+<div class="app">
+  <!-- ================= 左侧控制台 ================= -->
+  <aside class="rail">
+    <header class="brand">
+      <div class="seal">疫</div>
+      <div class="brand-text">
+        <h1>瘟疫</h1>
+        <p>PLAGUE SIMULATOR</p>
+      </div>
+      <button class="icon-btn" id="helpBtn" aria-label="打开模型说明" title="模型说明">?</button>
+    </header>
+
+    <nav class="rail-tabs" role="tablist" aria-label="参数分类">
+      <button class="tab active" data-tab="pathogen" role="tab" aria-selected="true">病原体</button>
+      <button class="tab" data-tab="env" role="tab" aria-selected="false">环境</button>
+      <button class="tab" data-tab="act" role="tab" aria-selected="false">干预</button>
+    </nav>
+
+    <div class="rail-scroll">
+      <!-- 病原体 -->
+      <section class="tab-panel active" data-panel="pathogen">
+        <div class="section-label">病原体档案 <span>SCENARIO</span></div>
+        <div class="preset-grid" id="presetGrid"></div>
+
+        <details class="dossier" id="dossier" open></details>
+
+        <div class="section-label">病原参数 <span>PATHOGEN</span></div>
+        <div class="controls" id="diseaseControls"></div>
+      </section>
+
+      <!-- 环境 -->
+      <section class="tab-panel" data-panel="env">
+        <div class="section-label">当前气候 <span>CLIMATE NOW</span></div>
+        <div class="city-temps" id="cityTemps"></div>
+
+        <div class="section-label">气候系统 <span>CLIMATE</span></div>
+        <div class="controls" id="envClimateControls"></div>
+
+        <div class="section-label">社会与医疗 <span>SOCIETY</span></div>
+        <div class="controls" id="envSocietyControls"></div>
+
+        <p class="rail-note">每座城市的气温 = 基础气温 + 纬度偏移 + 季节波动。传播力与病死率都会随当地气温变化。</p>
+      </section>
+
+      <!-- 干预 -->
+      <section class="tab-panel" data-panel="act">
+        <div class="section-label">公共卫生干预 <span>INTERVENTIONS</span></div>
+        <div class="controls" id="interventionControls"></div>
+
+        <div class="section-label">进阶 <span>ADVANCED</span></div>
+        <div class="controls" id="advancedControls"></div>
+
+        <div class="action-row">
+          <button class="btn ghost wide" id="exportBtn">导出数据 CSV</button>
+          <button class="btn ghost wide" id="clearActBtn">解除全部干预</button>
+        </div>
+        <p class="rail-note">干预立即生效，并在事件日志中留下记录。隔离覆盖率与社交距离强度可单独调节。</p>
+      </section>
+    </div>
+
+    <footer class="rail-foot">
+      <span>教学模型 · 非预测工具</span>
+      <span>SEIRD · 空间个体模型</span>
+    </footer>
+  </aside>
+
+  <!-- ================= 主舞台 ================= -->
+  <main class="stage">
+    <header class="topbar">
+      <div class="title-block">
+        <div class="eyebrow">EPIDEMIC FIELD STATION · 六城邦</div>
+        <div class="title-row">
+          <h2 id="scenarioTitle">1918 大流感</h2>
+          <span class="era" id="scenarioEra">1918–1919</span>
+        </div>
+      </div>
+
+      <div class="transport">
+        <button class="btn primary" id="playBtn" aria-label="暂停模拟">
+          <span id="playIcon">❚❚</span><span id="playText">暂停</span>
+        </button>
+        <div class="speeds" id="speeds" role="group" aria-label="模拟速度">
+          <button data-speed="1" class="active">1×</button>
+          <button data-speed="2">2×</button>
+          <button data-speed="4">4×</button>
+          <button data-speed="8">8×</button>
+        </div>
+        <button class="btn ghost" id="resetBtn" aria-label="重新开始">重置</button>
+        <button class="icon-btn topbar-help" id="helpBtnMobile" aria-label="模型说明">?</button>
+      </div>
+
+      <div class="clock">
+        <div class="day"><span>第</span><b id="dayNum">0</b><span>天</span></div>
+        <div class="clock-sub" id="clockSub">平均气温 13.0°C · 温和</div>
+      </div>
+    </header>
+
+    <section class="hud" aria-label="实时指标">
+      <article class="stat">
+        <div class="stat-label">现存感染</div>
+        <div class="stat-value accent-red" id="statActive">0</div>
+        <div class="stat-sub" id="statActiveSub">潜伏 0 · 隔离 0</div>
+      </article>
+      <article class="stat">
+        <div class="stat-label">累计感染</div>
+        <div class="stat-value" id="statEver">0</div>
+        <div class="stat-sub" id="statEverSub">感染率 0.0%</div>
+      </article>
+      <article class="stat">
+        <div class="stat-label">死亡</div>
+        <div class="stat-value accent-bone" id="statDeaths">0</div>
+        <div class="stat-sub" id="statDeathsSub">观测病死率 0.0%</div>
+      </article>
+      <article class="stat">
+        <div class="stat-label">医疗占用</div>
+        <div class="stat-value" id="statBeds"><span id="statBedsNum">0</span><small id="statBedsCap">/0</small></div>
+        <div class="bed-bar"><i id="bedBarFill"></i></div>
+      </article>
+      <article class="stat">
+        <div class="stat-label">免疫 / 接种</div>
+        <div class="stat-value accent-teal" id="statImmune">0</div>
+        <div class="stat-sub" id="statImmuneSub">已接种 0 剂</div>
+      </article>
+      <article class="stat">
+        <div class="stat-label">有效传染数 <em>R<sub>t</sub></em></div>
+        <div class="stat-value accent-amber" id="statRt">—</div>
+        <div class="stat-sub" id="statRtSub">等待传播链建立</div>
+      </article>
+    </section>
+
+    <section class="map-panel" id="mapPanel">
+      <div class="map-overlay top">
+        <div class="legend" aria-label="图例">
+          <span><i class="dot s"></i>易感</span>
+          <span><i class="dot e"></i>潜伏</span>
+          <span><i class="dot i"></i>感染</span>
+          <span><i class="dot r"></i>康复</span>
+          <span><i class="dot d"></i>死亡</span>
+        </div>
+        <div class="map-hint">点击城市 · 投放病例</div>
+      </div>
+      <canvas id="map" aria-label="六城邦疫情传播地图"></canvas>
+      <div class="city-tip" id="cityTip" hidden></div>
+      <div class="map-overlay bottom">
+        <div class="map-meta" id="mapMeta">六城邦 · 3,200 人</div>
+        <div class="map-scale"><i></i><span>200 km</span></div>
+      </div>
+    </section>
+
+    <section class="bottom">
+      <div class="chart-panel">
+        <div class="panel-head">
+          <div class="panel-title">流行曲线 <span>EPIDEMIC CURVE</span></div>
+          <div class="chart-legend">
+            <span><i class="line red"></i>现存感染</span>
+            <span><i class="line amber dashed"></i>潜伏</span>
+            <span><i class="line bone"></i>累计死亡</span>
+            <span><i class="bar"></i>每日新增</span>
+          </div>
+        </div>
+        <div class="chart-body" id="chartBody">
+          <canvas id="chart" aria-label="疫情时间曲线"></canvas>
+          <div class="chart-tip" id="chartTip" hidden></div>
+        </div>
+      </div>
+
+      <div class="log-panel">
+        <div class="panel-head">
+          <div class="panel-title">事件日志 <span>EVENT LOG</span></div>
+          <div class="panel-hint" id="logCount">0 条</div>
+        </div>
+        <div class="log-list" id="logList"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<dialog id="helpDialog" class="help-dialog">
+  <form method="dialog" class="help-head">
+    <div>
+      <div class="eyebrow">PLAGUE SIMULATOR · FIELD MANUAL</div>
+      <h2>一座沙盘，六种瘟疫</h2>
+    </div>
+    <button class="icon-btn" value="close" aria-label="关闭">×</button>
+  </form>
+  <div class="help-body">
+    <section>
+      <h3>这是什么</h3>
+      <p>一个基于个体（agent-based）的 SEIRD 空间传播沙盘。六座虚构城市、数千名居民，每个人会移动、接触、被感染、康复或死亡。它不是预测工具，而是一台用来观察“参数如何改变命运”的显微镜。</p>
+    </section>
+    <section>
+      <h3>怎么玩</h3>
+      <ul>
+        <li>选择病原体，或直接调节 R₀、潜伏期、病死率等参数。</li>
+        <li>按 <kbd>空格</kbd> 暂停 / 继续，右上角切换 1×–8× 速度。</li>
+        <li><b>点击地图上的城市</b>可向该城投放 8 例潜伏期感染者，制造新的火种。</li>
+        <li>在“干预”页启动口罩、隔离、旅行限制、疫苗等手段，观察曲线是否被压平。</li>
+        <li>悬停城市查看当地气温、床位与疫情；悬停曲线查看任意一天的数据。</li>
+      </ul>
+    </section>
+    <section>
+      <h3>模型如何运作</h3>
+      <p>每个感染者每天会与若干人接触。单次接触的传播概率近似为：</p>
+      <pre>q = R₀ / (接触数 × 传染期) × 环境修正 × 个体状态修正</pre>
+      <ul>
+        <li><b>环境修正</b>：当地气温偏离病原体最适温度越远，传播力越低；严寒会让人群转入室内，反而增加接触。</li>
+        <li><b>状态修正</b>：无症状者传播力较低；隔离与住院者传播力大幅下降。</li>
+        <li><b>医疗容量</b>：重症患者占用床位，一旦超载，得不到救治的重症病死率显著上升。</li>
+        <li><b>年龄结构</b>：不同疾病有不同年龄风险曲线，1918 流感对青壮年尤其致命。</li>
+        <li><b>免疫</b>：康复者获得免疫，部分病原体会随时间衰减；启用“变异”后，免疫逃逸会制造新的波峰。</li>
+      </ul>
+    </section>
+    <section>
+      <h3>参数速查</h3>
+      <dl class="help-dl">
+        <div><dt>R₀</dt><dd>在完全易感人群中，一个感染者平均传染的人数。大于 1 才会形成持续流行。</dd></div>
+        <div><dt>潜伏期</dt><dd>感染到具备传染性之间的天数。长潜伏期会让疫情更隐蔽。</dd></div>
+        <div><dt>传染期</dt><dd>具备传染性的平均天数。</dd></div>
+        <div><dt>病死率</dt><dd>未考虑医疗与年龄差异的名义值；实际观测值会随医疗容量、气温和年龄结构变化。</dd></div>
+        <div><dt>温度敏感度</dt><dd>气温偏离最适温度时，传播力变化的幅度。0 表示完全不受温度影响。</dd></div>
+        <div><dt>人口密度</dt><dd>直接缩放每日接触人数，是改变 R₀ 有效值最直接的社会杠杆。</dd></div>
+      </dl>
+    </section>
+    <section>
+      <h3>历史数值说明</h3>
+      <p>各预设的 R₀、病死率、潜伏期取材于 WHO / CDC 及流行病学文献的常见区间，并做了教学化取整。城市、人口、接触网络均为虚构。历史疾病还受到营养、战争、医疗水平、行为变化等大量因素影响，本模型只保留了其中一小部分。</p>
+    </section>
+    <section class="help-warn">
+      <h3>边界</h3>
+      <p>模型采用均匀混合 + 空间聚集的简化假设，没有真实的人口接触网络、家庭结构、年龄混合矩阵与疫苗分配策略。请把它当作理解机制的沙盘，而不是任何真实疫情的预测依据。</p>
+    </section>
+  </div>
+  <form method="dialog" class="help-foot">
+    <span>空格 暂停 · R 重置 · 点击城市投放病例</span>
+    <button class="btn primary" value="close">开始模拟</button>
+  </form>
+</dialog>
+
+<script>
+/* ============================================================
+   瘟疫 · 传播模拟 — 模拟引擎
+   纯逻辑，无 DOM 依赖，可在 Node 中运行测试。
+   ============================================================ */
+(function (global) {
+  'use strict';
+
+  const WORLD = { w: 1180, h: 640 };
+
+  const STATE = { S: 0, E: 1, I: 2, R: 3, D: 4 };
+
+  const AGE_GROUPS = [
+    { name: '0–14', share: 0.22 },
+    { name: '15–49', share: 0.45 },
+    { name: '50–64', share: 0.19 },
+    { name: '65+', share: 0.14 }
+  ];
+
+  const AGE_PROFILES = {
+    uniform: { name: '均匀风险', mult: [1, 1, 1, 1], note: '各年龄段病死风险接近' },
+    children: { name: '儿童高危', mult: [1.8, 0.9, 1.0, 1.3], note: '儿童与老人风险更高' },
+    young: { name: '青壮年高危', mult: [0.9, 2.4, 0.7, 0.5], note: '20–40 岁死亡率异常偏高（W 形）' },
+    elders: { name: '老年高危', mult: [0.15, 0.35, 1.5, 4.2], note: '风险随年龄陡增' }
+  };
+  // 归一化，使加权平均 ≈ 1，这样“名义病死率”仍可比较
+  Object.values(AGE_PROFILES).forEach(function (p) {
+    let mean = 0;
+    AGE_GROUPS.forEach(function (g, i) { mean += g.share * p.mult[i]; });
+    p.norm = p.mult.map(function (m) { return m / mean; });
+  });
+
+  const CITY_DEFS = [
+    { id: 'frost', name: '霜港', en: 'FROSTPORT', x: 246, y: 116, w: 0.14, lat: -9, climate: '严寒' },
+    { id: 'ash', name: '灰谷', en: 'ASHVALE', x: 892, y: 128, w: 0.15, lat: -6, climate: '寒冷' },
+    { id: 'blue', name: '蓝湾', en: 'BLUEHAVEN', x: 182, y: 386, w: 0.17, lat: 0, climate: '温带' },
+    { id: 'crown', name: '王城', en: 'CROWN', x: 614, y: 330, w: 0.20, lat: 1, climate: '温带' },
+    { id: 'red', name: '赤土', en: 'REDLAND', x: 348, y: 548, w: 0.19, lat: 9, climate: '炎热' },
+    { id: 'salt', name: '盐丘', en: 'SALTMOUND', x: 926, y: 518, w: 0.15, lat: 12, climate: '干热' }
+  ];
+
+  const PRESETS = {
+    smallpox: {
+      id: 'smallpox', name: '天花', en: 'SMALLPOX', era: '18 世纪欧洲', origin: 3,
+      accent: '#d8b878',
+      disease: {
+        r0: 5.0, incubation: 12, infectious: 14, cfr: 0.25, asymptomatic: 0.02,
+        tempOpt: 12, tempSens: 0.35, immunityDays: Infinity, ageProfile: 'children',
+        severeRate: 0.34, contactRate: 10, travelFactor: 1
+      },
+      env: { baseTemp: 13, seasonAmp: 7, seasonPeriod: 180 },
+      facts: [
+        'R₀ 3.5–6 · 病死率 20–30%',
+        '幸存者获得终身免疫',
+        '飞沫与污染物传播，潜伏期约 10–14 天',
+        '1980 年全球根除，是人类唯一消灭的人类传染病'
+      ],
+      note: '高传染、高致死、终身免疫：一旦漏防，就会以巨大的死亡代价换来实现群体免疫。'
+    },
+    plague: {
+      id: 'plague', name: '黑死病', en: 'BLACK DEATH', era: '1347–1351', origin: 2,
+      accent: '#b48a5a',
+      disease: {
+        r0: 2.2, incubation: 4, infectious: 5, cfr: 0.45, asymptomatic: 0.02,
+        tempOpt: 18, tempSens: 0.2, immunityDays: Infinity, ageProfile: 'uniform',
+        severeRate: 0.32, contactRate: 7, travelFactor: 0.85
+      },
+      env: { baseTemp: 12, seasonAmp: 6, seasonPeriod: 200 },
+      facts: [
+        'R₀ 1.3–3（肺鼠疫）· 病死率 30–60%',
+        '沿地中海贸易航线登陆港口城市',
+        '跳蚤叮咬为主，肺鼠疫可人传人（本模型简化为直接传播）',
+        '“隔离 40 天”（quarantine）由此制度化'
+      ],
+      note: '中等传播力配极高致死率：疫情不会瞬间铺满地图，但每到一城都会留下深重的死亡。'
+    },
+    flu1918: {
+      id: 'flu1918', name: '1918 大流感', en: 'SPANISH FLU', era: '1918–1919', origin: 0,
+      accent: '#c98c63',
+      disease: {
+        r0: 2.4, incubation: 2.5, infectious: 6, cfr: 0.025, asymptomatic: 0.25,
+        tempOpt: 5, tempSens: 0.55, immunityDays: Infinity, ageProfile: 'young',
+        severeRate: 0.11, contactRate: 11, travelFactor: 1
+      },
+      env: { baseTemp: 9, seasonAmp: 9, seasonPeriod: 180 },
+      facts: [
+        'R₀ 1.8–3 · 病死率约 2–3%',
+        '青壮年死亡率异常偏高，呈 W 形年龄曲线',
+        '共三波，第二波最致命；口罩与集会禁令被广泛使用',
+        '低温、干燥与室内拥挤会放大传播'
+      ],
+      note: '低温环境下传播力显著增强。观察秋冬季节波峰如何被温度推高——这是本作最典型的“环境放大器”。'
+    },
+    measles: {
+      id: 'measles', name: '麻疹', en: 'MEASLES', era: '疫苗前时代', origin: 3,
+      accent: '#c9788a',
+      disease: {
+        r0: 15, incubation: 11, infectious: 8, cfr: 0.002, asymptomatic: 0.05,
+        tempOpt: 10, tempSens: 0.3, immunityDays: Infinity, ageProfile: 'children',
+        severeRate: 0.06, contactRate: 14, travelFactor: 1
+      },
+      env: { baseTemp: 15, seasonAmp: 6, seasonPeriod: 180 },
+      facts: [
+        'R₀ 12–18，是已知传播力最强的病原体之一',
+        '病死率 0.1–0.3%，儿童与营养不良者更危险',
+        '需约 95% 人口免疫才能阻断传播',
+        '感染后终身免疫'
+      ],
+      note: '超强传播力的极端案例：几乎不给防控留反应时间，疫苗覆盖率是唯一有效的闸门。'
+    },
+    ebola: {
+      id: 'ebola', name: '埃博拉', en: 'EBOLA', era: '2014 西非', origin: 4,
+      accent: '#9b6b52',
+      disease: {
+        r0: 1.8, incubation: 8, infectious: 10, cfr: 0.5, asymptomatic: 0.03,
+        tempOpt: 24, tempSens: 0.08, immunityDays: 730, ageProfile: 'uniform',
+        severeRate: 0.35, contactRate: 3, travelFactor: 0.45
+      },
+      env: { baseTemp: 26, seasonAmp: 3, seasonPeriod: 200 },
+      facts: [
+        'R₀ 1.5–2.5 · 病死率 25–90%',
+        '只经体液密切接触传播，普通社交接触效率低',
+        '医护感染与葬礼传播是重要放大器',
+        '高温环境几乎不影响其传播，隔离与防护服才是关键'
+      ],
+      note: '高致死、低传播：R₀ 刚过 1，靠的是接触网络。隔离与医护防护能迅速掐断它。'
+    },
+    covid: {
+      id: 'covid', name: '新冠原始株', en: 'SARS-CoV-2', era: '2020', origin: 3,
+      accent: '#6f9e9a',
+      disease: {
+        r0: 2.8, incubation: 5, infectious: 8, cfr: 0.008, asymptomatic: 0.3,
+        tempOpt: 8, tempSens: 0.4, immunityDays: 240, ageProfile: 'elders',
+        severeRate: 0.08, contactRate: 12, travelFactor: 1
+      },
+      env: { baseTemp: 14, seasonAmp: 7, seasonPeriod: 180 },
+      facts: [
+        'R₀ 2.5–3.5 · 感染病死率约 0.5–1%',
+        '无症状比例高，隐蔽传播是防控难点',
+        '老年重症风险陡增，医疗容量决定最终死亡数',
+        '免疫随时间衰减，可出现再感染与反复波峰'
+      ],
+      note: '低致死但高隐蔽：真正决定死亡人数的不是病毒本身，而是医疗系统是否被压垮、免疫能维持多久。'
+    },
+    custom: {
+      id: 'custom', name: '自定义', en: 'CUSTOM', era: '实验室', origin: 3,
+      accent: '#8fa3b3',
+      disease: {
+        r0: 3.2, incubation: 6, infectious: 9, cfr: 0.08, asymptomatic: 0.12,
+        tempOpt: 10, tempSens: 0.35, immunityDays: Infinity, ageProfile: 'uniform',
+        severeRate: 0.12, contactRate: 10, travelFactor: 1
+      },
+      env: { baseTemp: 14, seasonAmp: 7, seasonPeriod: 180 },
+      facts: [
+        '自由调节所有病原体参数',
+        '试试：R₀ 12 + 病死率 30%',
+        '再试试：潜伏期 20 天 + 50% 无症状',
+        '观察环境温度与医疗容量如何改变结局'
+      ],
+      note: '没有历史包袱的沙盘。改变一个参数，看看整条曲线如何回应。'
+    }
+  };
+
+  const DEFAULTS = {
+    population: 3200,
+    baseTemp: 14,
+    seasonAmp: 7,
+    seasonPeriod: 180,
+    density: 1,
+    travelRate: 0.006,
+    bedsPer10k: 150
+  };
+
+  function clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  function mulberry32(seed) {
+    let a = seed >>> 0;
+    return function () {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  function makeConfig(presetId, overrides) {
+    const p = PRESETS[presetId] || PRESETS.custom;
+    const cfg = {
+      presetId: p.id,
+      origin: p.origin,
+      disease: Object.assign({}, PRESETS.custom.disease, p.disease),
+      env: Object.assign({}, DEFAULTS, p.env || {}),
+      interventions: {
+        masks: false,
+        isolate: false,
+        isolateCoverage: 0.7,
+        travelBan: false,
+        distancing: false,
+        distanceStrength: 0.6,
+        vaccine: false,
+        vaccineRate: 0.006,
+        hospitalBoost: false
+      },
+      advanced: { mutation: false }
+    };
+    if (overrides) {
+      ['disease', 'env', 'interventions', 'advanced'].forEach(function (k) {
+        if (overrides[k]) Object.assign(cfg[k], overrides[k]);
+      });
+      if (overrides.origin != null) cfg.origin = overrides.origin;
+      if (overrides.presetId) cfg.presetId = overrides.presetId;
+    }
+    return cfg;
+  }
+
+  class Simulation {
+    constructor(config) {
+      this.config = config || makeConfig('flu1918');
+      this.reset();
+    }
+
+    reset(seed) {
+      const cfg = this.config;
+      this.seed = seed == null ? (Math.floor(Math.random() * 1e9) + 7) : seed;
+      this.rng = mulberry32(this.seed);
+      this.day = 0;
+      this.history = [];
+      this.events = [];
+      this.eventSeq = 0;
+      this.flags = { city1: {}, city5: {}, overload: false, peak: false, contained: false, deathMilestones: {} };
+      this.r0Mul = 1;
+      this.mutations = 0;
+      this.totalInfected = 0;
+      this.totalDeaths = 0;
+      this.totalVaccinated = 0;
+      this.newInfections = 0;
+      this.newDeaths = 0;
+      this.quietDays = 0;
+      this.peakDay = 0;
+      this.running = true;
+      this.graves = [];
+      this.fx = [];
+      this.nextFx = 0;
+      this.buildCities();
+      this.cities.forEach((c) => { c.temp = this.tempAt(c); });
+      this.buildPopulation();
+      this.buildBuckets();
+      this.seedCity(cfg.origin, 4, true);
+      this.cities[cfg.origin].reported = true;
+      this.updateCityStats();
+      this.record();
+      this.log('info', '疫情开始', '零号病例出现在 ' + this.cities[cfg.origin].name + '，一座 ' +
+        this.cities[cfg.origin].initialPop + ' 人的城市。');
+      return this;
+    }
+
+    /* ---------- 构建 ---------- */
+
+    buildCities() {
+      const self = this;
+      const total = Math.max(600, Math.round(this.config.env.population));
+      let allocated = 0;
+      this.cities = CITY_DEFS.map(function (def, i) {
+        let pop = i === CITY_DEFS.length - 1
+          ? total - allocated
+          : Math.round(total * def.w);
+        allocated += pop;
+        pop = Math.max(40, pop);
+        return {
+          id: def.id, name: def.name, en: def.en, x: def.x, y: def.y,
+          lat: def.lat, climate: def.climate, index: i,
+          initialPop: pop, pop: pop,
+          radius: 46 + Math.sqrt(pop) * 2.1,
+          agents: [], buckets: new Map(), temp: 14,
+          active: 0, everInfected: 0, deaths: 0, recovered: 0,
+          bedsUsed: 0, capacity: 1,
+          phase: i * 0.1,
+          reported: false
+        };
+      });
+      this.cities.forEach(function (c) {
+        c.capacity = Math.max(1, self.config.env.bedsPer10k * c.initialPop / 10000 *
+          (self.config.interventions.hospitalBoost ? 2 : 1));
+      });
+    }
+
+    buildPopulation() {
+      this.agents = [];
+      const self = this;
+      const rng = this.rng;
+      this.cities.forEach(function (city, ci) {
+        for (let k = 0; k < city.initialPop; k++) {
+          const cluster = k % 3;
+          const angle = (cluster / 3) * Math.PI * 2 + rng() * 1.1;
+          const spread = city.radius * (0.14 + rng() * 0.34);
+          const cx = city.x + Math.cos(angle) * city.radius * 0.34;
+          const cy = city.y + Math.sin(angle) * city.radius * 0.34;
+          const r = Math.sqrt(rng()) * spread;
+          const a2 = rng() * Math.PI * 2;
+          const ageRoll = rng();
+          let age = 0, acc = 0;
+          for (let g = 0; g < AGE_GROUPS.length; g++) {
+            acc += AGE_GROUPS[g].share;
+            if (ageRoll <= acc) { age = g; break; }
+            age = g;
+          }
+          const biasRoll = rng();
+          self.agents.push({
+            id: self.agents.length,
+            city: ci,
+            x: clamp(cx + Math.cos(a2) * r, city.x - city.radius * 0.9, city.x + city.radius * 0.9),
+            y: clamp(cy + Math.sin(a2) * r, city.y - city.radius * 0.9, city.y + city.radius * 0.9),
+            homeX: city.x, homeY: city.y,
+            dir: rng() * Math.PI * 2,
+            turn: (rng() - 0.5) * 1.8,
+            speed: 4 + rng() * 7,
+            age: age,
+            state: STATE.S,
+            timer: 0,
+            asym: false,
+            severe: false,
+            isolated: false,
+            hospitalized: false,
+            vaccinated: false,
+            everInfected: false,
+            bias: 0.35 + Math.pow(biasRoll, 1.7) * 2.1,
+            incub: 0,
+            duration: 0,
+            immunityLeft: 0,
+            sway: rng() * Math.PI * 2
+          });
+        }
+      });
+      this.initialTotal = this.agents.length;
+    }
+
+    buildBuckets() {
+      const CELL = 34;
+      const self = this;
+      this.cities.forEach(function (c) {
+        c.agents = [];
+        c.buckets = new Map();
+      });
+      this.agents.forEach(function (a) {
+        if (a.state === STATE.D) return;
+        const c = self.cities[a.city];
+        if (!c) return;
+        c.agents.push(a);
+        const localX = a.x - (c.x - c.radius * 1.1);
+        const localY = a.y - (c.y - c.radius * 1.1);
+        const key = (Math.floor(localX / CELL) + 1) * 1000 + (Math.floor(localY / CELL) + 1);
+        let arr = c.buckets.get(key);
+        if (!arr) { arr = []; c.buckets.set(key, arr); }
+        arr.push(a);
+      });
+      this.cellSize = CELL;
+    }
+
+    /* ---------- 环境 ---------- */
+
+    tempAt(city) {
+      const env = this.config.env;
+      const period = Math.max(30, env.seasonPeriod);
+      const phase = (this.day / period) * Math.PI * 2 + city.phase;
+      return env.baseTemp + city.lat + env.seasonAmp * Math.sin(phase);
+    }
+
+    envTransmission(temp) {
+      const d = this.config.disease;
+      const dev = (d.tempOpt - temp) / 25;
+      return clamp(1 + d.tempSens * dev, 0.25, 1.9);
+    }
+
+    behaviorContact(temp) {
+      if (temp < 2) return 1.18;
+      if (temp > 32) return 0.86;
+      return 1;
+    }
+
+    envLethality(temp) {
+      if (temp < 0) return 1.12;
+      if (temp > 34) return 1.12;
+      return 1;
+    }
+
+    /* ---------- 传播 ---------- */
+
+    infect(target) {
+      const cfg = this.config;
+      target.state = STATE.E;
+      target.timer = 0;
+      target.asym = this.rng() < cfg.disease.asymptomatic;
+      target.severe = false;
+      target.isolated = false;
+      target.hospitalized = false;
+      target.incub = Math.max(1, Math.round(cfg.disease.incubation * (0.75 + this.rng() * 0.5)));
+      target.duration = Math.max(1, Math.round(cfg.disease.infectious * (0.8 + this.rng() * 0.4)));
+      const c = this.cities[target.city];
+      if (!target.everInfected) {
+        target.everInfected = true;
+        c.everInfected++;
+        this.totalInfected++;
+      }
+      this.newInfections++;
+      this.quietDays = 0;
+    }
+
+    becomeInfectious(a) {
+      const cfg = this.config;
+      a.state = STATE.I;
+      a.timer = 0;
+      a.severe = !a.asym && this.rng() < clamp(cfg.disease.severeRate, 0.01, 0.6);
+      const city = this.cities[a.city];
+      if (a.severe) {
+        if (city.bedsUsed < city.capacity) {
+          a.hospitalized = true;
+          city.bedsUsed++;
+        }
+      }
+      if (!a.asym && !a.hospitalized && cfg.interventions.isolate && this.rng() < cfg.interventions.isolateCoverage) {
+        a.isolated = true;
+      }
+    }
+
+    resolveOutcome(a) {
+      const cfg = this.config;
+      const d = cfg.disease;
+      const city = this.cities[a.city];
+      const ageMult = AGE_PROFILES[d.ageProfile] ? AGE_PROFILES[d.ageProfile].norm[a.age] : 1;
+      let p = d.cfr * ageMult * this.envLethality(city.temp);
+      p *= a.severe ? (a.hospitalized ? 0.9 : 2.4) : 0.75;
+      if (this.config.advanced.mutation) p *= 1 + Math.min(0.35, this.mutations * 0.04);
+      p = clamp(p, 0, 0.985);
+      if (a.hospitalized) {
+        a.hospitalized = false;
+        city.bedsUsed = Math.max(0, city.bedsUsed - 1);
+      }
+      if (this.rng() < p) {
+        a.state = STATE.D;
+        a.deadDay = this.day;
+        city.deaths++;
+        this.totalDeaths++;
+        this.newDeaths++;
+        this.graves.push({ x: a.x, y: a.y, city: a.city, day: this.day, age: a.age });
+        if (this.graves.length > 2400) this.graves.shift();
+      } else {
+        a.state = STATE.R;
+        a.isolated = false;
+        a.severe = false;
+        const imm = d.immunityDays;
+        a.immunityLeft = imm === Infinity || imm == null ? Infinity : Math.round(imm * (0.85 + this.rng() * 0.3));
+        city.recovered++;
+      }
+      a.timer = 0;
+    }
+
+    sampleContact(city, a) {
+      const CELL = this.cellSize || 34;
+      const originX = city.x - city.radius * 1.1;
+      const originY = city.y - city.radius * 1.1;
+      if (this.rng() < 0.68) {
+        const lx = Math.floor((a.x - originX) / CELL);
+        const ly = Math.floor((a.y - originY) / CELL);
+        const dx = Math.floor(this.rng() * 3) - 1;
+        const dy = Math.floor(this.rng() * 3) - 1;
+        const arr = city.buckets.get((lx + dx + 1) * 1000 + (ly + dy + 1));
+        if (arr && arr.length) return arr[Math.floor(this.rng() * arr.length)];
+      }
+      if (!city.agents.length) return null;
+      return city.agents[Math.floor(this.rng() * city.agents.length)];
+    }
+
+    transmit() {
+      const cfg = this.config;
+      const d = cfg.disease;
+      const self = this;
+      const baseQ = (d.r0 * this.r0Mul) / (Math.max(1, d.contactRate || 9) * Math.max(1, d.infectious));
+      const distFactor = cfg.interventions.distancing ? (1 - cfg.interventions.distanceStrength) : 1;
+      this.cities.forEach(function (city) {
+        const envF = self.envTransmission(city.temp);
+        const contacts = clamp(Math.round((d.contactRate || 9) * cfg.env.density * distFactor * self.behaviorContact(city.temp)), 1, 30);
+        let infectious = 0;
+        for (let i = 0; i < city.agents.length; i++) if (city.agents[i].state === STATE.I) infectious++;
+        if (!infectious) return;
+        for (let i = 0; i < city.agents.length; i++) {
+          const a = city.agents[i];
+          if (a.state !== STATE.I) continue;
+          let status = 1;
+          if (a.hospitalized) status = 0.12;
+          else if (a.isolated) status = 0.08;
+          else if (a.asym) status = 0.5;
+          let q = baseQ * a.bias * status * envF;
+          if (cfg.interventions.masks) q *= 0.62;
+          q = clamp(q, 0, 0.85);
+          for (let k = 0; k < contacts; k++) {
+            const target = self.sampleContact(city, a);
+            if (!target || target === a || target.state !== STATE.S) continue;
+            if (self.rng() < q) self.infect(target);
+          }
+        }
+      });
+    }
+
+    vaccinate() {
+      const cfg = this.config;
+      if (!cfg.interventions.vaccine) return;
+      const doses = Math.floor(this.config.env.population * cfg.interventions.vaccineRate);
+      if (doses <= 0) return;
+      const pool = [];
+      for (let i = 0; i < this.agents.length; i++) {
+        const a = this.agents[i];
+        if (a.state === STATE.S && !a.vaccinated) pool.push(a);
+      }
+      const n = Math.min(doses, pool.length);
+      for (let i = 0; i < n; i++) {
+        const idx = Math.floor(this.rng() * pool.length);
+        const a = pool.splice(idx, 1)[0];
+        a.vaccinated = true;
+        this.totalVaccinated++;
+        if (this.rng() < 0.9) {
+          a.state = STATE.R;
+          a.immunityLeft = cfg.disease.immunityDays === Infinity ? Infinity : cfg.disease.immunityDays * 1.5;
+          a.timer = 0;
+        }
+      }
+    }
+
+    travel() {
+      const cfg = this.config;
+      const self = this;
+      const d = cfg.disease;
+      const mult = cfg.interventions.travelBan ? 0.1 : 1;
+      const baseP = cfg.env.travelRate * mult * (d.travelFactor || 1);
+      this.agents.forEach(function (a) {
+        if (a.isolated || a.hospitalized || a.state === STATE.D) return;
+        let stateFactor = 1;
+        if (a.state === STATE.I) stateFactor = a.asym ? 0.8 : 0.22;
+        if (self.rng() < baseP * stateFactor) {
+          let dest = Math.floor(self.rng() * self.cities.length);
+          if (dest === a.city) dest = (dest + 1 + Math.floor(self.rng() * (self.cities.length - 1))) % self.cities.length;
+          const from = self.cities[a.city];
+          const to = self.cities[dest];
+          a.city = dest;
+          const ang = self.rng() * Math.PI * 2;
+          const rr = Math.sqrt(self.rng()) * to.radius * 0.75;
+          a.x = clamp(to.x + Math.cos(ang) * rr, to.x - to.radius * 0.9, to.x + to.radius * 0.9);
+          a.y = clamp(to.y + Math.sin(ang) * rr, to.y - to.radius * 0.9, to.y + to.radius * 0.9);
+          a.homeX = to.x;
+          a.homeY = to.y;
+          self.fx.push({ fromX: from.x, fromY: from.y, toX: to.x, toY: to.y, life: 1, city: dest });
+          if (self.fx.length > 26) self.fx.shift();
+        }
+      });
+    }
+
+    mutate() {
+      this.mutations++;
+      this.r0Mul = Math.min(2, this.r0Mul * 1.12);
+      const d = this.config.disease;
+      const self = this;
+      let escaped = 0;
+      this.agents.forEach(function (a) {
+        if (a.state === STATE.R && self.rng() < 0.25) {
+          a.state = STATE.S;
+          a.immunityLeft = 0;
+          escaped++;
+        }
+      });
+      this.log('warn', '病毒发生变异', '传播力上升至 ×' + this.r0Mul.toFixed(2) +
+        (escaped ? '，' + escaped + ' 人失去免疫保护。' : '。'));
+      this.flags.contained = false;
+    }
+
+    /* ---------- 每日推进 ---------- */
+
+    stepDay() {
+      if (this.day >= 2000) return;
+      const cfg = this.config;
+      this.day++;
+      this.newInfections = 0;
+      this.newDeaths = 0;
+
+      this.cities.forEach((c) => { c.temp = this.tempAt(c); c.capacity = Math.max(1, cfg.env.bedsPer10k * c.initialPop / 10000 * (cfg.interventions.hospitalBoost ? 2 : 1)); });
+
+      if (cfg.advanced.mutation && this.day % 55 === 0) this.mutate();
+      this.vaccinate();
+
+      // 免疫消退
+      this.agents.forEach((a) => {
+        if (a.state === STATE.R && a.immunityLeft !== Infinity && a.immunityLeft > 0) {
+          a.immunityLeft--;
+          if (a.immunityLeft <= 0) { a.state = STATE.S; a.timer = 0; }
+        }
+      });
+
+      this.buildBuckets();
+      this.transmit();
+
+      // 病程推进
+      const deaths = [];
+      for (let i = 0; i < this.agents.length; i++) {
+        const a = this.agents[i];
+        if (a.state === STATE.E) {
+          a.timer++;
+          if (a.timer >= a.incub) this.becomeInfectious(a);
+        } else if (a.state === STATE.I) {
+          a.timer++;
+          if (a.timer >= a.duration) {
+            this.resolveOutcome(a);
+            if (a.state === STATE.D) deaths.push(a);
+          }
+        }
+      }
+      if (deaths.length) {
+        const deadSet = new Set(deaths.map((d) => d.id));
+        this.agents = this.agents.filter((a) => !deadSet.has(a.id));
+      }
+
+      this.travel();
+      this.r0Effective = cfg.disease.r0 * this.r0Mul;
+
+      this.updateCityStats();
+      this.record();
+      this.detectEvents();
+      this.detectEnd();
+    }
+
+    updateCityStats() {
+      const self = this;
+      this.cities.forEach(function (c) {
+        c.active = 0; c.recovered = 0; c.bedsUsed = 0;
+      });
+      this.agents.forEach(function (a) {
+        const c = self.cities[a.city];
+        if (!c) return;
+        if (a.state === STATE.E || a.state === STATE.I) c.active++;
+        if (a.state === STATE.R) c.recovered++;
+        if (a.state === STATE.I && a.hospitalized) c.bedsUsed++;
+      });
+    }
+
+    computeStats() {
+      let s = 0, e = 0, i = 0, r = 0, beds = 0, cap = 0, iso = 0, hosp = 0;
+      for (let k = 0; k < this.agents.length; k++) {
+        const a = this.agents[k];
+        if (a.state === STATE.S) s++;
+        else if (a.state === STATE.E) e++;
+        else if (a.state === STATE.I) { i++; if (a.isolated) iso++; if (a.hospitalized) hosp++; }
+        else if (a.state === STATE.R) r++;
+      }
+      this.cities.forEach(function (c) { beds += c.bedsUsed; cap += c.capacity; });
+      const alive = s + e + i + r;
+      const d = this.totalDeaths;
+      const initial = Math.max(1, this.initialTotal || this.config.env.population);
+      return {
+        day: this.day, s: s, e: e, i: i, r: r, d: d, alive: alive,
+        newInfections: this.newInfections, newDeaths: this.newDeaths,
+        everInfected: this.totalInfected, totalDeaths: this.totalDeaths,
+        attackRate: this.totalInfected / initial,
+        cfrObserved: this.totalInfected > 0 ? this.totalDeaths / this.totalInfected : 0,
+        bedsUsed: beds, capacity: Math.max(1, cap), isolated: iso, hospitalized: hosp,
+        vaccinated: this.totalVaccinated, r0: this.config.disease.r0 * this.r0Mul,
+        r0Mul: this.r0Mul, mutations: this.mutations,
+        rt: this.computeRt()
+      };
+    }
+
+    computeRt() {
+      const h = this.history;
+      const g = Math.max(2, Math.round(this.config.disease.incubation + this.config.disease.infectious * 0.5));
+      if (h.length < g + 5) return null;
+      const recent = h.slice(-5).reduce(function (s, x) { return s + x.newInfections; }, 0);
+      const prev = h.slice(-5 - g, -g).reduce(function (s, x) { return s + x.newInfections; }, 0);
+      if (recent < 5 || prev <= 0) return null;
+      return clamp(recent / prev, 0, 12);
+    }
+
+    record() {
+      const st = this.computeStats();
+      this.stats = st;
+      this.history.push({
+        day: this.day, s: st.s, e: st.e, i: st.i, r: st.r, d: st.d,
+        bedsUsed: st.bedsUsed, capacity: st.capacity,
+        newInfections: st.newInfections, newDeaths: st.newDeaths,
+        rt: st.rt, temp: this.cities.reduce(function (s, c) { return s + c.temp; }, 0) / this.cities.length,
+        newDeathsCount: this.newDeaths
+      });
+      if (this.history.length > 2400) this.history.shift();
+    }
+
+    /* ---------- 事件 ---------- */
+
+    log(type, title, detail) {
+      this.events.push({ id: ++this.eventSeq, day: this.day, type: type, title: title, detail: detail });
+      if (this.events.length > 400) this.events.shift();
+    }
+
+    refresh() {
+      const cfg = this.config;
+      this.cities.forEach((c) => {
+        c.temp = this.tempAt(c);
+        c.capacity = Math.max(1, cfg.env.bedsPer10k * c.initialPop / 10000 * (cfg.interventions.hospitalBoost ? 2 : 1));
+      });
+      this.updateCityStats();
+      this.stats = this.computeStats();
+      return this.stats;
+    }
+
+    detectEvents() {
+      const self = this;
+      const st = this.stats;
+      this.cities.forEach(function (c) {
+        if (c.everInfected > 0 && !c.reported) {
+          c.reported = true;
+          if (self.day > 1) self.log('seed', c.name + ' 出现首例', '病毒沿交通网络抵达这座 ' + Math.round(c.initialPop) + ' 人的城市。');
+        }
+        const share = c.active / c.initialPop;
+        if (!self.flags.city1[c.id] && share >= 0.01) {
+          self.flags.city1[c.id] = true;
+          self.log('warn', c.name + ' 疫情扩散', '现存感染者达到城市人口的 1%。');
+        }
+        if (!self.flags.city5[c.id] && share >= 0.05) {
+          self.flags.city5[c.id] = true;
+          self.log('danger', c.name + ' 医疗紧张', '5% 的居民正在感染中，院内资源开始告急。');
+        }
+      });
+
+      if (!this.flags.overload && st.bedsUsed > st.capacity) {
+        this.flags.overload = true;
+        this.log('danger', '医疗系统超载', '重症患者 ' + Math.round(st.bedsUsed) + ' 人，已超过 ' + Math.round(st.capacity) + ' 张床位——病死率将显著上升。');
+      }
+      if (this.flags.overload && st.bedsUsed <= st.capacity * 0.85) {
+        this.flags.overload = false;
+      }
+
+      const milestones = [10, 50, 100, 250, 500, 1000, 2000];
+      milestones.forEach(function (m) {
+        if (self.totalDeaths >= m && !self.flags.deathMilestones[m]) {
+          self.flags.deathMilestones[m] = true;
+          self.log('danger', '死亡人数超过 ' + m, '累计病死 ' + self.totalDeaths + ' 人，观测病死率 ' + (st.cfrObserved * 100).toFixed(1) + '%。');
+        }
+      });
+
+      if (!this.flags.peak && this.totalInfected > 60 && this.day > 20) {
+        const h = this.history;
+        if (h.length > 14) {
+          const recent = h.slice(-7).reduce((s, x) => s + x.newInfections, 0);
+          const prev = h.slice(-14, -7).reduce((s, x) => s + x.newInfections, 0);
+          if (recent < prev * 0.82 && prev > 10) {
+            this.flags.peak = true;
+            this.peakDay = this.day;
+            this.log('good', '新增病例开始回落', '第 ' + this.day + ' 天，单日新增的 7 日均值出现下降——但易感者仍未耗尽。');
+          }
+        }
+      }
+
+      if (st.i === 0 && st.e === 0 && this.totalInfected > 10 && !this.flags.contained) {
+        this.quietDays = (this.quietDays || 0) + 1;
+        if (this.quietDays >= 25) {
+          this.flags.contained = true;
+          this.log('good', '疫情暂时平息', '连续 25 天无现存感染者。累计感染 ' + this.totalInfected + ' 人，死亡 ' + this.totalDeaths + ' 人。');
+        }
+      } else if (st.i > 0 || st.e > 0) {
+        this.quietDays = 0;
+      }
+    }
+
+    detectEnd() {
+      if (this.stats.alive <= 0) {
+        this.log('danger', '人口清零', '这座城市网络已无人生还。');
+      }
+    }
+
+    /* ---------- 操作 ---------- */
+
+    seedCity(cityIndex, n, silent) {
+      const city = this.cities[cityIndex];
+      if (!city) return 0;
+      const pool = this.agents.filter(function (a) { return a.city === cityIndex && a.state === STATE.S; });
+      let seeded = 0;
+      for (let i = 0; i < n && pool.length; i++) {
+        const idx = Math.floor(this.rng() * pool.length);
+        const a = pool.splice(idx, 1)[0];
+        a.state = STATE.E;
+        a.timer = 0;
+        a.incub = Math.max(1, Math.round(this.config.disease.incubation * (0.7 + this.rng() * 0.6)));
+        a.duration = Math.max(1, Math.round(this.config.disease.infectious * (0.8 + this.rng() * 0.4)));
+        a.asym = this.rng() < this.config.disease.asymptomatic;
+        if (!a.everInfected) {
+          a.everInfected = true;
+          this.totalInfected++;
+          city.everInfected++;
+        }
+        seeded++;
+        this.quietDays = 0;
+        this.flags.contained = false;
+      }
+      if (!silent && seeded) {
+        this.log('seed', '主动投放病例', '向 ' + city.name + ' 投放了 ' + seeded + ' 例潜伏期感染者。');
+      }
+      if (seeded) city.reported = true;
+      return seeded;
+    }
+
+    updateMotion(dt) {
+      const self = this;
+      dt = Math.min(0.05, dt);
+      this.agents.forEach(function (a) {
+        const c = self.cities[a.city];
+        if (!c) return;
+        if (a.isolated || a.hospitalized) {
+          a.sway += dt * 0.7;
+          a.x += Math.cos(a.sway) * 0.6 * dt;
+          a.y += Math.sin(a.sway * 1.3) * 0.6 * dt;
+          return;
+        }
+        a.turn += (Math.random() - 0.5) * 2.6 * dt;
+        a.turn = clamp(a.turn, -2.2, 2.2);
+        a.dir += a.turn * dt;
+        a.x += Math.cos(a.dir) * a.speed * dt;
+        a.y += Math.sin(a.dir) * a.speed * dt;
+        const dx = a.x - c.x, dy = a.y - c.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > c.radius * 0.88) {
+          const toward = Math.atan2(c.y - a.y, c.x - a.x);
+          let diff = toward - a.dir;
+          while (diff > Math.PI) diff -= Math.PI * 2;
+          while (diff < -Math.PI) diff += Math.PI * 2;
+          a.dir += diff * Math.min(1, dt * 3.2);
+        }
+      });
+      for (let i = this.fx.length - 1; i >= 0; i--) {
+        this.fx[i].life -= dt / 1.4;
+        if (this.fx[i].life <= 0) this.fx.splice(i, 1);
+      }
+    }
+
+    setPopulation(n) {
+      this.config.env.population = clamp(Math.round(n), 600, 8000);
+      this.flags = { city1: {}, city5: {}, overload: false, peak: false, contained: false, deathMilestones: {} };
+      this.totalInfected = 0;
+      this.totalDeaths = 0;
+      this.totalVaccinated = 0;
+      this.buildCities();
+      this.cities.forEach((c) => { c.temp = this.tempAt(c); });
+      this.buildPopulation();
+      this.buildBuckets();
+      this.day = 0;
+      this.history = [];
+      this.events = [];
+      this.eventSeq = 0;
+      this.graves = [];
+      this.fx = [];
+      this.r0Mul = 1;
+      this.mutations = 0;
+      this.newInfections = 0;
+      this.newDeaths = 0;
+      this.quietDays = 0;
+      this.seedCity(this.config.origin, 4, true);
+      this.cities[this.config.origin].reported = true;
+      this.updateCityStats();
+      this.record();
+      this.log('info', '场景已重置', '总人口 ' + this.config.env.population + ' 人，零号病例出现在 ' + this.cities[this.config.origin].name + '。');
+    }
+  }
+
+  global.PlagueEngine = {
+    WORLD: WORLD,
+    STATE: STATE,
+    CITY_DEFS: CITY_DEFS,
+    AGE_GROUPS: AGE_GROUPS,
+    AGE_PROFILES: AGE_PROFILES,
+    PRESETS: PRESETS,
+    DEFAULTS: DEFAULTS,
+    makeConfig: makeConfig,
+    Simulation: Simulation,
+    clamp: clamp,
+    lerp: lerp
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+/* ============================================================
+   瘟疫 · 传播模拟 — 地图渲染
+   ============================================================ */
+(function (global) {
+  'use strict';
+
+  const E = global.PlagueEngine;
+  const W = E.WORLD.w;
+  const H = E.WORLD.h;
+  const COLORS = {
+    s: 'rgba(108, 129, 142, 0.58)',
+    e: 'rgba(223, 168, 78, 0.9)',
+    i: 'rgba(230, 91, 74, 0.96)',
+    r: 'rgba(72, 161, 147, 0.62)',
+    isolated: 'rgba(230, 91, 74, 0.35)',
+    grave: 'rgba(126, 74, 68, 0.4)',
+    bone: '#e9e0cf',
+    dim: '#5a6c75'
+  };
+
+  const ROUTES = [
+    ['frost', 'crown'], ['ash', 'crown'], ['blue', 'crown'],
+    ['red', 'crown'], ['salt', 'crown'], ['blue', 'red'], ['ash', 'salt']
+  ];
+
+  function tempColor(t) {
+    if (t < 0) return '#84b4cc';
+    if (t < 8) return '#8fb3c1';
+    if (t < 18) return '#a9b8b3';
+    if (t < 26) return '#c8b295';
+    if (t < 32) return '#d79c6d';
+    return '#de7d5f';
+  }
+
+  function roundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  class MapRenderer {
+    constructor(canvas, getSim) {
+      this.canvas = canvas;
+      this.ctx = canvas.getContext('2d');
+      this.getSim = getSim;
+      this.w = 0;
+      this.h = 0;
+      this.dpr = 1;
+      this.scale = 1;
+      this.ox = 0;
+      this.oy = 0;
+      this.hover = -1;
+      this.pulses = [];
+      this.time = 0;
+      this.resize();
+    }
+
+    resize() {
+      const rect = this.canvas.getBoundingClientRect();
+      const w = Math.max(10, rect.width);
+      const h = Math.max(10, rect.height);
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      if (w === this.w && h === this.h && dpr === this.dpr) return false;
+      this.w = w;
+      this.h = h;
+      this.dpr = dpr;
+      this.canvas.width = Math.round(w * dpr);
+      this.canvas.height = Math.round(h * dpr);
+      this.computeLayout();
+      return true;
+    }
+
+    computeLayout() {
+      const padTop = 26, padBottom = 18, padX = 6;
+      const usableH = Math.max(20, this.h - padTop - padBottom);
+      const s = Math.min((this.w - padX * 2) / W, usableH / H);
+      this.scale = s;
+      this.ox = (this.w - W * s) / 2;
+      this.oy = padTop + (usableH - H * s) / 2;
+    }
+
+    X(x) { return this.ox + x * this.scale; }
+    Y(y) { return this.oy + y * this.scale; }
+
+    cityAt(clientX, clientY) {
+      const rect = this.canvas.getBoundingClientRect();
+      const x = clientX - rect.left;
+      const y = clientY - rect.top;
+      const sim = this.getSim();
+      if (!sim) return -1;
+      let best = -1;
+      let bestD = Infinity;
+      sim.cities.forEach((c, i) => {
+        const d = Math.hypot(x - this.X(c.x), y - this.Y(c.y));
+        const r = Math.max(30, c.radius * this.scale * 1.02);
+        if (d < r && d < bestD) { best = i; bestD = d; }
+      });
+      return best;
+    }
+
+    pulse(cityIndex) {
+      this.pulses.push({ city: cityIndex, t: 0 });
+    }
+
+    draw(now) {
+      if (!this.w || this.canvas.clientWidth !== this.w || this.canvas.clientHeight !== this.h) this.resize();
+      const sim = this.getSim();
+      if (!sim) return;
+      const ctx = this.ctx;
+      const w = this.w, h = this.h;
+      this.time = now || 0;
+
+      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+
+      this.drawOcean(ctx, w, h);
+      this.drawFrameBase(ctx);
+      this.drawClimate(ctx);
+      this.drawGraticule(ctx);
+      this.drawRoutes(ctx, sim);
+      this.drawTerritories(ctx, sim);
+      this.drawGraves(ctx, sim);
+      this.drawAgents(ctx, sim);
+      this.drawTravel(ctx, sim);
+      this.drawCityLabels(ctx, sim);
+      this.drawChrome(ctx, sim);
+      this.drawPulses(ctx, sim);
+    }
+
+    drawOcean(ctx, w, h) {
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, '#081119');
+      g.addColorStop(0.5, '#070e13');
+      g.addColorStop(1, '#0a1012');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, w, h);
+      // 全画布经纬网
+      ctx.strokeStyle = 'rgba(82, 105, 116, 0.055)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let x = 0; x < w; x += 72) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, h); }
+      for (let y = 0; y < h; y += 72) { ctx.moveTo(0, y + 0.5); ctx.lineTo(w, y + 0.5); }
+      ctx.stroke();
+
+      // 四角网点
+      const s = this.scale;
+      ctx.strokeStyle = 'rgba(96, 116, 124, 0.38)';
+      ctx.lineWidth = 1;
+      const m = 10;
+      [[m, m, 1, 1], [w - m, m, -1, 1], [m, h - m, 1, -1], [w - m, h - m, -1, -1]].forEach(function (c) {
+        ctx.beginPath();
+        ctx.moveTo(c[0] + c[2] * 9, c[1]);
+        ctx.lineTo(c[0], c[1]);
+        ctx.lineTo(c[0], c[1] + c[3] * 9);
+        ctx.stroke();
+      });
+
+      // 海面的城市微光
+      const sim = this.getSim();
+      if (!sim) return;
+      sim.cities.forEach((c) => {
+        const x = this.X(c.x), y = this.Y(c.y), r = c.radius * s * 2.4;
+        const rg = ctx.createRadialGradient(x, y, 0, x, y, r);
+        rg.addColorStop(0, 'rgba(120, 52, 40, 0.11)');
+        rg.addColorStop(1, 'rgba(120, 52, 40, 0)');
+        ctx.fillStyle = rg;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    drawFrameBase(ctx) {
+      const s = this.scale;
+      const x = this.X(0), y = this.Y(0), w = W * s, h = H * s;
+      const g = ctx.createLinearGradient(0, y, 0, y + h);
+      g.addColorStop(0, 'rgba(19, 34, 45, 0.62)');
+      g.addColorStop(0.45, 'rgba(12, 23, 29, 0.55)');
+      g.addColorStop(1, 'rgba(24, 25, 21, 0.55)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x, y, w, h);
+
+      ctx.strokeStyle = 'rgba(98, 118, 127, 0.26)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+
+      // 双线边框
+      ctx.strokeStyle = 'rgba(98, 118, 127, 0.1)';
+      ctx.strokeRect(x + 4.5, y + 4.5, w - 9, h - 9);
+
+      // 角落刻度
+      ctx.strokeStyle = 'rgba(185, 164, 135, 0.5)';
+      [0, 1].forEach(function (i) {
+        const cx = i ? x + w : x;
+        const cy = y;
+        ctx.beginPath();
+        ctx.moveTo(cx + (i ? 16 : -16), cy); ctx.lineTo(cx, cy);
+        ctx.moveTo(cx, cy); ctx.lineTo(cx, cy + 16);
+        ctx.stroke();
+      });
+    }
+
+    drawClimate(ctx) {
+      const s = this.scale;
+      const x = this.X(0), y = this.Y(0), w = W * s, h = H * s;
+      const g = ctx.createLinearGradient(0, y, 0, y + h);
+      g.addColorStop(0, 'rgba(70, 126, 166, 0.12)');
+      g.addColorStop(0.3, 'rgba(70, 126, 166, 0.03)');
+      g.addColorStop(0.58, 'rgba(70, 126, 166, 0)');
+      g.addColorStop(0.84, 'rgba(196, 122, 60, 0.08)');
+      g.addColorStop(1, 'rgba(188, 92, 50, 0.13)');
+      ctx.fillStyle = g;
+      ctx.fillRect(x, y, w, h);
+
+      ctx.save();
+      ctx.setLineDash([2, 6]);
+      ctx.strokeStyle = 'rgba(128, 150, 158, 0.16)';
+      ctx.lineWidth = 1;
+      const y1 = this.Y(210), y2 = this.Y(450);
+      ctx.beginPath();
+      ctx.moveTo(x, y1 + 0.5); ctx.lineTo(x + w, y1 + 0.5);
+      ctx.moveTo(x, y2 + 0.5); ctx.lineTo(x + w, y2 + 0.5);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.font = '8px "JetBrains Mono", Consolas, monospace';
+      ctx.fillStyle = 'rgba(126, 152, 163, 0.32)';
+      if (this.w >= 640) {
+        ctx.textAlign = 'right';
+        ctx.fillText('寒带', x + w - 14, y + 58);
+        ctx.fillText('温带', x + w - 14, (y1 + y2) / 2);
+        ctx.fillText('热带', x + w - 14, this.Y(590));
+      }
+    }
+
+    drawGraticule(ctx) {
+      const s = this.scale;
+      const x = this.X(0), y = this.Y(0), w = W * s, h = H * s;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(x, y, w, h);
+      ctx.clip();
+      ctx.strokeStyle = 'rgba(104, 126, 136, 0.07)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let gx = 100; gx < W; gx += 100) {
+        const px = Math.round(this.X(gx)) + 0.5;
+        ctx.moveTo(px, y); ctx.lineTo(px, y + h);
+      }
+      for (let gy = 80; gy < H; gy += 80) {
+        const py = Math.round(this.Y(gy)) + 0.5;
+        ctx.moveTo(x, py); ctx.lineTo(x + w, py);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    drawRoutes(ctx, sim) {
+      const self = this;
+      const map = {};
+      sim.cities.forEach((c, i) => { map[c.id] = i; });
+      ctx.save();
+      ctx.setLineDash([2, 7]);
+      ctx.strokeStyle = 'rgba(154, 142, 116, 0.13)';
+      ctx.lineWidth = 1;
+      ROUTES.forEach(function (pair) {
+        const a = sim.cities[map[pair[0]]], b = sim.cities[map[pair[1]]];
+        if (!a || !b) return;
+        const x1 = self.X(a.x), y1 = self.Y(a.y), x2 = self.X(b.x), y2 = self.Y(b.y);
+        const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+        const dx = x2 - x1, dy = y2 - y1;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len, ny = dx / len;
+        const bend = 22;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.quadraticCurveTo(mx + nx * bend, my + ny * bend, x2, y2);
+        ctx.stroke();
+      });
+      ctx.restore();
+    }
+
+    drawTerritories(ctx, sim) {
+      const s = this.scale;
+      sim.cities.forEach((c) => {
+        const x = this.X(c.x), y = this.Y(c.y);
+        const r = c.radius * s;
+        const activeShare = c.active / Math.max(1, c.initialPop);
+        const deadShare = c.deaths / Math.max(1, c.initialPop);
+
+        if (c.active > 0) {
+          const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 1.25);
+          const a = Math.min(0.3, 0.06 + activeShare * 2.6);
+          glow.addColorStop(0, 'rgba(206, 78, 60, ' + a.toFixed(3) + ')');
+          glow.addColorStop(0.55, 'rgba(176, 60, 46, ' + (a * 0.35).toFixed(3) + ')');
+          glow.addColorStop(1, 'rgba(140, 50, 40, 0)');
+          ctx.fillStyle = glow;
+          ctx.beginPath();
+          ctx.arc(x, y, r * 1.25, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.save();
+        ctx.setLineDash([3, 7]);
+        ctx.strokeStyle = c.active > 0 ? 'rgba(196, 106, 86, 0.35)' : 'rgba(120, 140, 150, 0.2)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.strokeStyle = 'rgba(130, 148, 155, 0.09)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(x, y, r * 0.72, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // 城市核心
+        ctx.fillStyle = 'rgba(190, 172, 143, 0.55)';
+        ctx.beginPath();
+        ctx.arc(x, y, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(190, 172, 143, 0.22)';
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, Math.PI * 2);
+        ctx.stroke();
+
+        // 感染占比弧（最多显示 30% 人口）
+        if (c.active > 0) {
+          const frac = Math.min(0.92, activeShare * 3.2);
+          ctx.strokeStyle = 'rgba(228, 96, 78, 0.7)';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(x, y, r + 4, -Math.PI / 2, -Math.PI / 2 + frac * Math.PI * 2);
+          ctx.stroke();
+        }
+        if (deadShare > 0.002) {
+          const frac = Math.min(0.92, deadShare * 2.2);
+          ctx.strokeStyle = 'rgba(150, 106, 96, 0.5)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(x, y, r + 8, Math.PI / 2, Math.PI / 2 + frac * Math.PI * 2);
+          ctx.stroke();
+        }
+      });
+    }
+
+    drawGraves(ctx, sim) {
+      if (!sim.graves.length) return;
+      ctx.fillStyle = COLORS.grave;
+      ctx.beginPath();
+      const s = this.scale;
+      for (let i = 0; i < sim.graves.length; i++) {
+        const g = sim.graves[i];
+        const x = this.X(g.x), y = this.Y(g.y);
+        ctx.rect(x - 0.7, y - 0.7, 1.5, 1.5);
+      }
+      ctx.fill();
+    }
+
+    drawAgents(ctx, sim) {
+      const agents = sim.agents;
+      if (!agents.length) return;
+      const self = this;
+      const dot = E.clamp(this.w / 950, 0.85, 1.2);
+
+      ctx.fillStyle = COLORS.s;
+      ctx.beginPath();
+      for (let i = 0; i < agents.length; i++) {
+        const a = agents[i];
+        if (a.state !== E.STATE.S) continue;
+        const x = self.X(a.x), y = self.Y(a.y);
+        ctx.rect(x - 0.9, y - 0.9, 1.8, 1.8);
+      }
+      ctx.fill();
+
+      ctx.fillStyle = COLORS.r;
+      ctx.beginPath();
+      for (let i = 0; i < agents.length; i++) {
+        const a = agents[i];
+        if (a.state !== E.STATE.R) continue;
+        const x = self.X(a.x), y = self.Y(a.y);
+        ctx.rect(x - 0.9, y - 0.9, 1.8, 1.8);
+      }
+      ctx.fill();
+
+      ctx.fillStyle = COLORS.e;
+      ctx.beginPath();
+      for (let i = 0; i < agents.length; i++) {
+        const a = agents[i];
+        if (a.state !== E.STATE.E) continue;
+        ctx.moveTo(self.X(a.x) + 1.5 * dot, self.Y(a.y));
+        ctx.arc(self.X(a.x), self.Y(a.y), 1.5 * dot, 0, Math.PI * 2);
+      }
+      ctx.fill();
+
+      // 感染者光晕（数量多时自动减弱）
+      let infectious = 0;
+      for (let i = 0; i < agents.length; i++) if (agents[i].state === E.STATE.I) infectious++;
+      if (infectious > 0 && infectious < 700) {
+        ctx.fillStyle = 'rgba(224, 78, 60, 0.1)';
+        ctx.beginPath();
+        for (let i = 0; i < agents.length; i++) {
+          const a = agents[i];
+          if (a.state !== E.STATE.I) continue;
+          ctx.moveTo(self.X(a.x) + 4.6, self.Y(a.y));
+          ctx.arc(self.X(a.x), self.Y(a.y), 4.6, 0, Math.PI * 2);
+        }
+        ctx.fill();
+      }
+
+      ctx.fillStyle = COLORS.i;
+      ctx.beginPath();
+      for (let i = 0; i < agents.length; i++) {
+        const a = agents[i];
+        if (a.state !== E.STATE.I) continue;
+        const x = self.X(a.x), y = self.Y(a.y);
+        ctx.moveTo(x + 2.1 * dot, y);
+        ctx.arc(x, y, 2.1 * dot, 0, Math.PI * 2);
+      }
+      ctx.fill();
+
+      // 隔离者：空心环
+      ctx.strokeStyle = 'rgba(240, 170, 150, 0.55)';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath();
+      for (let i = 0; i < agents.length; i++) {
+        const a = agents[i];
+        if (a.state !== E.STATE.I || !a.isolated) continue;
+        const x = self.X(a.x), y = self.Y(a.y);
+        ctx.moveTo(x + 4.4, y);
+        ctx.arc(x, y, 4.4, 0, Math.PI * 2);
+      }
+      ctx.stroke();
+
+      // 住院者：白点
+      ctx.fillStyle = 'rgba(245, 236, 216, 0.9)';
+      ctx.beginPath();
+      for (let i = 0; i < agents.length; i++) {
+        const a = agents[i];
+        if (a.state !== E.STATE.I || !a.hospitalized) continue;
+        const x = self.X(a.x), y = self.Y(a.y);
+        ctx.rect(x - 0.8, y - 0.8, 1.6, 1.6);
+      }
+      ctx.fill();
+    }
+
+    drawTravel(ctx, sim) {
+      if (!sim.fx.length) return;
+      sim.fx.forEach((f) => {
+        const life = Math.max(0, Math.min(1, f.life));
+        if (life <= 0) return;
+        const x1 = this.X(f.fromX), y1 = this.Y(f.fromY);
+        const x2 = this.X(f.toX), y2 = this.Y(f.toY);
+        const mx = (x1 + x2) / 2;
+        const my = (y1 + y2) / 2 - Math.min(120, Math.hypot(x2 - x1, y2 - y1) * 0.22);
+        ctx.strokeStyle = 'rgba(220, 178, 118, ' + (life * 0.24).toFixed(3) + ')';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.quadraticCurveTo(mx, my, x2, y2);
+        ctx.stroke();
+        const t = 1 - life;
+        const it = 1 - t;
+        const px = it * it * x1 + 2 * it * t * mx + t * t * x2;
+        const py = it * it * y1 + 2 * it * t * my + t * t * y2;
+        ctx.fillStyle = 'rgba(233, 199, 145, ' + (life * 0.85).toFixed(3) + ')';
+        ctx.beginPath();
+        ctx.arc(px, py, 1.7, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+
+    drawCityLabels(ctx, sim) {
+      const s = this.scale;
+      const order = sim.cities.map((c, i) => i);
+      order.sort((a, b) => (a === this.hover ? 1 : 0) - (b === this.hover ? 1 : 0));
+      order.forEach((i) => {
+        const c = sim.cities[i];
+        this.drawCityLabel(ctx, c, i === this.hover, s);
+      });
+    }
+
+    drawCityLabel(ctx, c, hovered, s) {
+      const x = this.X(c.x), y = this.Y(c.y);
+      const r = c.radius * s;
+
+      // 窄屏：只保留紧凑的城市名与温度，避免标签互相重叠
+      if (this.w < 640) {
+        const above = c.y > 400;
+        const ly = E.clamp(above ? y - r - 10 : y + r + 13, 12, this.h - 24);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '600 10px "Songti SC", "Noto Serif SC", serif';
+        ctx.fillStyle = hovered ? '#f5e9d6' : 'rgba(223, 211, 192, 0.92)';
+        ctx.fillText(c.name, x, ly);
+        ctx.font = '7.5px "JetBrains Mono", Consolas, monospace';
+        ctx.fillStyle = tempColor(c.temp);
+        ctx.fillText(c.temp.toFixed(1) + '°', x, ly + 11);
+        if (c.active > 0) {
+          ctx.fillStyle = 'rgba(230, 100, 82, 0.9)';
+          ctx.beginPath();
+          ctx.arc(x, ly - 10, 1.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        return;
+      }
+
+      const above = c.y > 400;
+      const gap = 15;
+      const ly = above ? y - r - gap : y + r + gap;
+
+      const nameSize = E.clamp(12 + s * 2.4, 12, 16);
+      const plateW = Math.max(118, nameSize * 5);
+      const plateH = 34;
+      let left = x - plateW / 2;
+      let top = above ? ly - plateH : ly;
+      left = E.clamp(left, 8, this.w - plateW - 8);
+      top = E.clamp(top, 8, this.h - plateH - 8);
+
+      ctx.strokeStyle = hovered ? 'rgba(224, 90, 73, 0.55)' : 'rgba(120, 140, 150, 0.16)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, above ? y - r - 2 : y + r + 2);
+      ctx.lineTo(x, above ? top + plateH : top);
+      ctx.stroke();
+
+      ctx.fillStyle = hovered ? 'rgba(16, 24, 28, 0.95)' : 'rgba(8, 14, 18, 0.78)';
+      roundRect(ctx, left + 0.5, top + 0.5, plateW - 1, plateH - 1, 1);
+      ctx.fill();
+      ctx.strokeStyle = hovered ? 'rgba(224, 90, 73, 0.6)' : 'rgba(110, 130, 139, 0.24)';
+      ctx.stroke();
+
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.font = '600 ' + nameSize + 'px "Songti SC", "Noto Serif SC", serif';
+      ctx.fillStyle = hovered ? '#f3e9d8' : '#ddd3c1';
+      ctx.fillText(c.name, left + 8, top + 12);
+
+      ctx.textAlign = 'right';
+      ctx.font = '8.5px "JetBrains Mono", Consolas, monospace';
+      ctx.fillStyle = tempColor(c.temp);
+      ctx.fillText(c.temp.toFixed(1) + '°', left + plateW - 8, top + 11);
+
+      ctx.textAlign = 'left';
+      ctx.font = '8.5px "Segoe UI", "Microsoft YaHei", sans-serif';
+      if (c.active > 0) {
+        ctx.fillStyle = 'rgba(224, 120, 101, 0.85)';
+        ctx.fillText('现存 ' + c.active + ' · 亡 ' + c.deaths, left + 8, top + 25);
+      } else if (c.deaths > 0) {
+        ctx.fillStyle = 'rgba(150, 126, 112, 0.8)';
+        ctx.fillText('疫情平息 · 亡 ' + c.deaths, left + 8, top + 25);
+      } else {
+        ctx.fillStyle = 'rgba(100, 124, 132, 0.7)';
+        ctx.fillText('尚无病例', left + 8, top + 25);
+      }
+    }
+
+    drawChrome(ctx, sim) {
+      const s = this.scale;
+      const x = this.X(0), y = this.Y(0), w = W * s, h = H * s;
+
+      // 指北针（左下角）
+      const cx = x + 40, cy = y + h - 52;
+      ctx.strokeStyle = 'rgba(160, 144, 118, 0.38)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 17); ctx.lineTo(cx, cy + 6);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(198, 168, 132, 0.7)';
+      ctx.beginPath();
+      ctx.moveTo(cx, cy - 18); ctx.lineTo(cx - 3.5, cy - 9); ctx.lineTo(cx + 3.5, cy - 9);
+      ctx.closePath(); ctx.fill();
+      ctx.font = '7px "JetBrains Mono", Consolas, monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(147, 164, 170, 0.45)';
+      ctx.fillText('N', cx, cy - 26);
+
+      // 比例尺
+      ctx.textAlign = 'right';
+      ctx.fillStyle = 'rgba(120, 138, 146, 0.45)';
+      ctx.font = '7.5px "JetBrains Mono", Consolas, monospace';
+      ctx.fillText('200 km', x + w - 16, y + h - 10);
+      ctx.strokeStyle = 'rgba(120, 138, 146, 0.35)';
+      ctx.beginPath();
+      ctx.moveTo(x + w - 64, y + h - 17);
+      ctx.lineTo(x + w - 16, y + h - 17);
+      ctx.moveTo(x + w - 64, y + h - 20);
+      ctx.lineTo(x + w - 64, y + h - 14);
+      ctx.moveTo(x + w - 16, y + h - 20);
+      ctx.lineTo(x + w - 16, y + h - 14);
+      ctx.stroke();
+    }
+
+    drawPulses(ctx, sim) {
+      const now = this.time;
+      if (!this.pulses.length) return;
+      for (let i = this.pulses.length - 1; i >= 0; i--) {
+        const p = this.pulses[i];
+        if (!p.start) p.start = now;
+        const age = (now - p.start) / 1100;
+        if (age > 1) { this.pulses.splice(i, 1); continue; }
+        const c = sim.cities[p.city];
+        const x = this.X(c.x), y = this.Y(c.y);
+        ctx.strokeStyle = 'rgba(236, 181, 129, ' + ((1 - age) * 0.7).toFixed(3) + ')';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        ctx.arc(x, y, 10 + age * 46, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+    }
+  }
+
+  global.PS = global.PS || {};
+  global.PS.MapRenderer = MapRenderer;
+})(window);
+
+</script>
+<script>
+/* ============================================================
+   瘟疫 · 传播模拟 — 流行曲线
+   ============================================================ */
+(function (global) {
+  'use strict';
+
+  const E = global.PlagueEngine;
+  const FONT_MONO = '"JetBrains Mono", "SFMono-Regular", Consolas, monospace';
+  const FONT_SANS = '"Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif';
+
+  const C = {
+    i: '#e05a49',
+    e: '#dfa84e',
+    d: '#c9bba4',
+    grid: 'rgba(42, 60, 70, 0.55)',
+    gridSoft: 'rgba(42, 60, 70, 0.3)',
+    muted: 'rgba(120, 142, 151, 0.68)',
+    dim: 'rgba(92, 111, 120, 0.6)'
+  };
+
+  function fmt(n) {
+    if (n == null) return '—';
+    return Math.round(n).toLocaleString('zh-CN');
+  }
+
+  function niceScale(maxValue) {
+    const raw = Math.max(4, maxValue * 1.12);
+    const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const norm = raw / mag;
+    let stepNorm = 1;
+    if (norm <= 1) stepNorm = 0.25;
+    else if (norm <= 2) stepNorm = 0.5;
+    else if (norm <= 5) stepNorm = 1;
+    else stepNorm = 2;
+    const step = stepNorm * mag;
+    return { max: Math.ceil(raw / step) * step, step: step, ticks: Math.ceil(raw / step) };
+  }
+
+  class ChartRenderer {
+    constructor(canvas, tooltip) {
+      this.canvas = canvas;
+      this.ctx = canvas.getContext('2d');
+      this.tip = tooltip;
+      this.w = 0;
+      this.h = 0;
+      this.dpr = 1;
+      this.hover = -1;
+      this.hoverPx = 0;
+      this.lastKey = '';
+      this.getSim = null;
+      this.pad = { l: 40, r: 46, t: 12, b: 20 };
+    }
+
+    resize() {
+      const rect = this.canvas.getBoundingClientRect();
+      const w = Math.max(10, rect.width);
+      const h = Math.max(10, rect.height);
+      const dpr = Math.min(2, window.devicePixelRatio || 1);
+      if (w === this.w && h === this.h && dpr === this.dpr) return false;
+      this.w = w;
+      this.h = h;
+      this.dpr = dpr;
+      this.canvas.width = Math.round(w * dpr);
+      this.canvas.height = Math.round(h * dpr);
+      return true;
+    }
+
+    layout() {
+      const p = this.pad;
+      const plotW = this.w - p.l - p.r;
+      const usableH = this.h - p.t - p.b;
+      const gap = 16;
+      const topH = Math.max(30, usableH * 0.63);
+      const bottomY = p.t + topH + gap;
+      const bottomH = Math.max(18, usableH - topH - gap);
+      return {
+        x: p.l, y: p.t, w: plotW, topH: topH,
+        bottomY: bottomY, bottomH: bottomH,
+        totalH: usableH
+      };
+    }
+
+    pointerMove(evt) {
+      const rect = this.canvas.getBoundingClientRect();
+      const x = evt.clientX - rect.left;
+      const y = evt.clientY - rect.top;
+      const L = this.layout();
+      if (x < L.x - 6 || x > L.x + L.w + 6 || y < L.y - 6 || y > this.h - this.pad.b + 6) {
+        this.pointerLeave();
+        return;
+      }
+      const sim = this.getSim ? this.getSim() : null;
+      if (!sim) return;
+      const hist = sim.history;
+      const xMax = Math.max(30, hist.length ? hist[hist.length - 1].day : 0);
+      const day = Math.round(((x - L.x) / L.w) * xMax);
+      let idx = -1;
+      for (let i = hist.length - 1; i >= 0; i--) {
+        if (hist[i].day <= day) { idx = i; break; }
+      }
+      this.hover = idx;
+      this.hoverPx = x;
+      this.lastKey = '';
+    }
+
+    pointerLeave() {
+      this.hover = -1;
+      this.lastKey = '';
+      if (this.tip) this.tip.hidden = true;
+    }
+
+    draw(sim) {
+      if (!sim) return;
+      if (!this.w || this.canvas.clientWidth !== this.w || this.canvas.clientHeight !== this.h) this.resize();
+      const hist = sim.history;
+      const key = this.w + 'x' + this.h + ':' + hist.length + ':' + this.hover + ':' +
+        (sim.stats ? sim.stats.i + '/' + sim.stats.e + '/' + sim.stats.d : '');
+      if (key === this.lastKey) return;
+      this.lastKey = key;
+
+      const ctx = this.ctx;
+      const w = this.w, h = this.h;
+      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+
+      const L = this.layout();
+      const xMax = Math.max(30, hist.length ? hist[hist.length - 1].day : 0);
+      let maxI = 0, maxE = 0, maxD = 0, maxNew = 0;
+      hist.forEach(function (d) {
+        if (d.i > maxI) maxI = d.i;
+        if (d.e > maxE) maxE = d.e;
+        if (d.d > maxD) maxD = d.d;
+        if (d.newInfections > maxNew) maxNew = d.newInfections;
+      });
+      maxI = Math.max(maxI, maxE, 8);
+      const ys = niceScale(maxI);
+      const yd = niceScale(Math.max(maxD, 4));
+      const yn = niceScale(Math.max(maxNew, 4));
+
+      const px = (day) => L.x + (day / xMax) * L.w;
+      const pyTop = (v) => L.y + L.topH - (v / ys.max) * L.topH;
+      const pyDeath = (v) => L.y + L.topH - (v / yd.max) * L.topH;
+      const pyNew = (v) => L.bottomY + L.bottomH - (v / yn.max) * L.bottomH;
+
+      this.drawAxes(ctx, L, xMax, ys, yd, pyTop, pyDeath);
+      if (hist.length < 2) {
+        this.drawEmpty(ctx, L);
+        if (this.tip) this.tip.hidden = true;
+        return;
+      }
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(L.x, L.y - 2, L.w, L.topH + 2);
+      ctx.clip();
+
+      // 现存感染面积
+      const grad = ctx.createLinearGradient(0, L.y, 0, L.y + L.topH);
+      grad.addColorStop(0, 'rgba(224, 90, 73, 0.4)');
+      grad.addColorStop(0.7, 'rgba(224, 90, 73, 0.1)');
+      grad.addColorStop(1, 'rgba(224, 90, 73, 0.01)');
+      ctx.beginPath();
+      ctx.moveTo(px(hist[0].day), L.y + L.topH);
+      hist.forEach((d) => ctx.lineTo(px(d.day), pyTop(d.i)));
+      ctx.lineTo(px(hist[hist.length - 1].day), L.y + L.topH);
+      ctx.closePath();
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      ctx.beginPath();
+      hist.forEach((d, i) => {
+        if (i === 0) ctx.moveTo(px(d.day), pyTop(d.i));
+        else ctx.lineTo(px(d.day), pyTop(d.i));
+      });
+      ctx.strokeStyle = C.i;
+      ctx.lineWidth = 1.5;
+      ctx.lineJoin = 'round';
+      ctx.stroke();
+
+      // 潜伏
+      ctx.beginPath();
+      hist.forEach((d, i) => {
+        if (i === 0) ctx.moveTo(px(d.day), pyTop(d.e));
+        else ctx.lineTo(px(d.day), pyTop(d.e));
+      });
+      ctx.save();
+      ctx.setLineDash([3, 4]);
+      ctx.strokeStyle = 'rgba(223, 168, 78, 0.8)';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      ctx.restore();
+
+      // 死亡（右轴）
+      if (maxD > 0) {
+        ctx.beginPath();
+        hist.forEach((d, i) => {
+          if (i === 0) ctx.moveTo(px(d.day), pyDeath(d.d));
+          else ctx.lineTo(px(d.day), pyDeath(d.d));
+        });
+        ctx.strokeStyle = 'rgba(201, 187, 164, 0.85)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      // 每日新增柱
+      const bw = Math.max(1, Math.min(5, L.w / Math.max(1, xMax) * 0.72));
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(L.x, L.bottomY, L.w, L.bottomH);
+      ctx.clip();
+      hist.forEach((d) => {
+        if (!d.newInfections) return;
+        const x = px(d.day) - bw / 2;
+        const y = pyNew(d.newInfections);
+        ctx.fillStyle = 'rgba(215, 112, 89, 0.5)';
+        ctx.fillRect(x, y, bw, L.bottomY + L.bottomH - y);
+      });
+      ctx.restore();
+
+      // 分类标签
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.font = '8px ' + FONT_MONO;
+      ctx.fillStyle = 'rgba(224, 90, 73, 0.55)';
+      ctx.fillText('ACTIVE INFECTIONS', L.x + 5, L.y + 7);
+      ctx.fillStyle = 'rgba(223, 168, 78, 0.5)';
+      ctx.fillText('EXPOSED', L.x + 5, L.y + 18);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = 'rgba(150, 164, 170, 0.45)';
+      ctx.fillText('DAILY NEW CASES', L.x + L.w - 5, L.bottomY + 7);
+
+      this.drawHover(ctx, hist, L, px, pyTop, pyDeath, maxD, xMax);
+    }
+
+    drawAxes(ctx, L, xMax, ys, yd, pyTop, pyDeath) {
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      ctx.font = '8px ' + FONT_MONO;
+      const ticks = Math.max(1, Math.round(ys.max / ys.step));
+      for (let i = 0; i <= ticks; i++) {
+        const v = ys.step * i;
+        const y = L.y + L.topH - (v / ys.max) * L.topH;
+        ctx.strokeStyle = i === 0 ? 'rgba(60, 80, 90, 0.5)' : C.gridSoft;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(L.x, Math.round(y) + 0.5);
+        ctx.lineTo(L.x + L.w, Math.round(y) + 0.5);
+        ctx.stroke();
+        if (i > 0) {
+          ctx.fillStyle = 'rgba(126, 146, 153, 0.55)';
+          ctx.fillText(this.shortNum(v), L.x - 6, y);
+        }
+      }
+
+      // 右轴：死亡
+      ctx.textAlign = 'left';
+      const dticks = Math.max(1, Math.round(yd.max / yd.step));
+      for (let i = 1; i <= dticks; i++) {
+        const v = yd.step * i;
+        const y = L.y + L.topH - (v / yd.max) * L.topH;
+        ctx.fillStyle = 'rgba(201, 187, 164, 0.42)';
+        ctx.fillText(this.shortNum(v), L.x + L.w + 7, y);
+      }
+
+      // x 轴
+      const xStep = this.xStep(xMax);
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.font = '8px ' + FONT_MONO;
+      for (let d = 0; d <= xMax; d += xStep) {
+        const x = L.x + (d / xMax) * L.w;
+        ctx.strokeStyle = 'rgba(52, 70, 80, 0.32)';
+        ctx.beginPath();
+        ctx.moveTo(Math.round(x) + 0.5, L.y);
+        ctx.lineTo(Math.round(x) + 0.5, L.bottomY + L.bottomH);
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(110, 130, 138, 0.55)';
+        ctx.fillText(d + (d === xMax && xMax >= 30 ? ' 天' : ''), x, L.bottomY + L.bottomH + 5);
+      }
+
+      // 底部分隔线
+      ctx.strokeStyle = 'rgba(42, 60, 70, 0.5)';
+      ctx.beginPath();
+      ctx.moveTo(L.x, L.bottomY - 0.5);
+      ctx.lineTo(L.x + L.w, L.bottomY - 0.5);
+      ctx.stroke();
+    }
+
+    drawEmpty(ctx, L) {
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '10px ' + FONT_SANS;
+      ctx.fillStyle = 'rgba(100, 120, 129, 0.6)';
+      ctx.fillText('第 0 天 · 传播链尚未展开', L.x + L.w / 2, L.y + L.topH / 2);
+    }
+
+    drawHover(ctx, hist, L, px, pyTop, pyDeath, maxD, xMax) {
+      if (this.hover < 0 || !hist[this.hover]) {
+        if (this.tip) this.tip.hidden = true;
+        return;
+      }
+      const d = hist[this.hover];
+      const x = px(d.day);
+      ctx.save();
+      ctx.strokeStyle = 'rgba(233, 224, 207, 0.28)';
+      ctx.setLineDash([2, 3]);
+      ctx.beginPath();
+      ctx.moveTo(Math.round(x) + 0.5, L.y);
+      ctx.lineTo(Math.round(x) + 0.5, L.bottomY + L.bottomH);
+      ctx.stroke();
+      ctx.restore();
+
+      ctx.fillStyle = C.i;
+      ctx.beginPath();
+      ctx.arc(x, pyTop(d.i), 2.4, 0, Math.PI * 2);
+      ctx.fill();
+
+      if (maxD > 0) {
+        ctx.fillStyle = C.d;
+        ctx.beginPath();
+        ctx.arc(x, pyDeath(d.d), 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      if (!this.tip) return;
+      const main = this.tip.parentElement;
+      const bodyW = main.clientWidth;
+      const tipW = 168;
+      let left = this.hoverPx + 14;
+      if (left + tipW > bodyW - 6) left = this.hoverPx - tipW - 14;
+      left = Math.max(6, left);
+      this.tip.style.left = left + 'px';
+      this.tip.style.top = '8px';
+      this.tip.hidden = false;
+      this.tip.innerHTML =
+        '<div class="ct-day">第 ' + d.day + ' 天</div>' +
+        '<div class="ct-row"><span>现存 / 潜伏</span><b>' + fmt(d.i) + ' / ' + fmt(d.e) + '</b></div>' +
+        '<div class="ct-row"><span>累计死亡 / 新增</span><b>' + fmt(d.d) + ' / ' + fmt(d.newInfections) + '</b></div>' +
+        '<div class="ct-row"><span>Rt</span><b>' + (d.rt == null ? '—' : d.rt.toFixed(2)) + '</b></div>';
+    }
+
+    shortNum(v) {
+      if (v >= 10000) return (v / 10000).toFixed(v >= 100000 ? 0 : 1) + '万';
+      if (v >= 1000) return (v / 1000).toFixed(v >= 10000 ? 0 : 1) + 'k';
+      return Math.round(v) + '';
+    }
+
+    xStep(xMax) {
+      const opts = [1, 2, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 365];
+      for (let i = 0; i < opts.length; i++) {
+        if (xMax / opts[i] <= 6) return opts[i];
+      }
+      return 365;
+    }
+  }
+
+  global.PS = global.PS || {};
+  global.PS.ChartRenderer = ChartRenderer;
+})(window);
+
+</script>
+<script>
+/* ============================================================
+   瘟疫 · 传播模拟 — 界面控制
+   ============================================================ */
+(function (global) {
+  'use strict';
+
+  const E = global.PlagueEngine;
+  let app = null;
+  let sim = null;
+  let map = null;
+  let chart = null;
+  let els = {};
+  let logRendered = 0;
+  let logFirstId = null;
+  let toastTimer = 0;
+  let controlSeq = 0;
+  let dossierOpen = true;
+
+  const $ = (id) => document.getElementById(id);
+
+  function fmt(n) {
+    return Math.round(n).toLocaleString('zh-CN');
+  }
+
+  function pct(v, digits) {
+    return (v * 100).toFixed(digits == null ? 1 : digits) + '%';
+  }
+
+  function seasonName(t) {
+    if (t < 0) return '严寒';
+    if (t < 8) return '寒冷';
+    if (t < 16) return '温凉';
+    if (t < 24) return '温和';
+    if (t < 30) return '温暖';
+    return '炎热';
+  }
+
+  function toast(msg) {
+    if (!els.toast) return;
+    els.toast.textContent = msg;
+    els.toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { els.toast.classList.remove('show'); }, 2400);
+  }
+
+  /* ---------------- 通用控件 ---------------- */
+
+  function addRange(parent, o) {
+    const wrap = document.createElement('div');
+    wrap.className = 'control';
+    const top = document.createElement('div');
+    top.className = 'control-top';
+    const label = document.createElement('label');
+    const id = 'rng-' + (++controlSeq);
+    label.htmlFor = id;
+    label.textContent = o.label;
+    const out = document.createElement('output');
+    top.appendChild(label);
+    top.appendChild(out);
+
+    const input = document.createElement('input');
+    input.type = 'range';
+    input.id = id;
+    input.min = o.min;
+    input.max = o.max;
+    input.step = o.step;
+    input.value = o.value;
+    input.disabled = !!o.disabled;
+
+    const format = o.format || function (v) { return v.toFixed(1) + (o.unit || ''); };
+    function paint() {
+      const v = parseFloat(input.value);
+      out.textContent = format(v);
+      const p = ((v - o.min) / (o.max - o.min)) * 100;
+      input.style.setProperty('--p', Math.max(0, Math.min(100, p)) + '%');
+    }
+    input.addEventListener('input', function () {
+      paint();
+      if (o.onInput) o.onInput(parseFloat(input.value));
+    });
+    paint();
+
+    wrap.appendChild(top);
+    wrap.appendChild(input);
+    if (o.hint) {
+      const hint = document.createElement('p');
+      hint.className = 'control-hint';
+      hint.textContent = o.hint;
+      wrap.appendChild(hint);
+    }
+    if (o.sub) wrap.classList.add('sub-control');
+    if (o.disabled) wrap.style.opacity = '0.42';
+    parent.appendChild(wrap);
+    return {
+      wrap: wrap, input: input, out: out, paint: paint,
+      setDisabled: function (d) {
+        input.disabled = d;
+        wrap.style.opacity = d ? '0.42' : '1';
+      }
+    };
+  }
+
+  function addSwitch(parent, o) {
+    const row = document.createElement('label');
+    row.className = 'switch-row';
+    const text = document.createElement('span');
+    text.className = 'sw-text';
+    const title = document.createElement('span');
+    title.className = 'sw-title';
+    title.textContent = o.title;
+    text.appendChild(title);
+    if (o.desc) {
+      const desc = document.createElement('span');
+      desc.className = 'sw-desc';
+      desc.textContent = o.desc;
+      text.appendChild(desc);
+    }
+    const input = document.createElement('input');
+    input.type = 'checkbox';
+    input.className = 'switch';
+    input.checked = !!o.checked;
+    if (o.id) input.id = o.id;
+    input.addEventListener('change', function () {
+      if (o.onChange) o.onChange(input.checked);
+    });
+    row.appendChild(text);
+    row.appendChild(input);
+    parent.appendChild(row);
+    return input;
+  }
+
+  function addSelect(parent, o) {
+    const wrap = document.createElement('div');
+    wrap.className = 'control';
+    const top = document.createElement('div');
+    top.className = 'control-top';
+    const label = document.createElement('label');
+    const id = 'sel-' + (++controlSeq);
+    label.htmlFor = id;
+    label.textContent = o.label;
+    top.appendChild(label);
+    wrap.appendChild(top);
+    const select = document.createElement('select');
+    select.id = id;
+    o.options.forEach(function (opt) {
+      const option = document.createElement('option');
+      option.value = opt.value;
+      option.textContent = opt.label;
+      if (String(opt.value) === String(o.value)) option.selected = true;
+      select.appendChild(option);
+    });
+    select.addEventListener('change', function () {
+      if (o.onChange) o.onChange(select.value);
+    });
+    wrap.appendChild(select);
+    const hint = document.createElement('p');
+    hint.className = 'control-hint';
+    hint.textContent = o.hint || '';
+    wrap.appendChild(hint);
+    parent.appendChild(wrap);
+    return { wrap: wrap, select: select, hint: hint };
+  }
+
+  function clearNode(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+
+  /* ---------------- 预设与档案 ---------------- */
+
+  function buildPresets() {
+    clearNode(els.presetGrid);
+    Object.keys(E.PRESETS).forEach(function (key) {
+      const p = E.PRESETS[key];
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'preset';
+      btn.dataset.id = key;
+      btn.innerHTML = '<span class="p-name">' + p.name + '</span><span class="p-era">' + p.era + '</span>';
+      els.presetGrid.appendChild(btn);
+    });
+    els.presetGrid.addEventListener('click', function (e) {
+      const btn = e.target.closest('.preset');
+      if (!btn) return;
+      selectPreset(btn.dataset.id);
+    });
+    updatePresetActive();
+  }
+
+  function updatePresetActive() {
+    const id = sim.config.presetId;
+    els.presetGrid.querySelectorAll('.preset').forEach(function (b) {
+      b.classList.toggle('active', b.dataset.id === id);
+    });
+  }
+
+  function updateDossier() {
+    const p = E.PRESETS[sim.config.presetId] || E.PRESETS.custom;
+    const d = p.disease;
+    const cfr = d.cfr * 100;
+    els.dossier.innerHTML =
+      '<summary class="dossier-summary">' +
+        '<span class="era-chip">' + p.era + '</span>' +
+        '<span class="dossier-summary-title">历史档案</span>' +
+        '<span class="dossier-en">' + p.en + '</span>' +
+      '</summary>' +
+      '<div class="dossier-body">' +
+        '<p class="dossier-note">“' + p.note + '”</p>' +
+        '<dl class="dossier-table">' +
+          '<div><dt>R₀</dt><dd>' + d.r0.toFixed(1) + '</dd></div>' +
+          '<div><dt>潜伏期</dt><dd>' + d.incubation + ' 天</dd></div>' +
+          '<div><dt>病死率</dt><dd>' + cfr.toFixed(cfr < 1 ? 2 : 1) + '%</dd></div>' +
+        '</dl>' +
+        '<details class="dossier-more">' +
+          '<summary>历史背景 · ' + p.facts.length + ' 条</summary>' +
+          '<ul>' + p.facts.map(function (f) { return '<li>' + f + '</li>'; }).join('') + '</ul>' +
+        '</details>' +
+      '</div>';
+    els.dossier.open = dossierOpen;
+  }
+
+  function selectPreset(id) {
+    if (!E.PRESETS[id]) return;
+    sim.config = E.makeConfig(id);
+    sim.reset();
+    app.acc = 0;
+    buildAllControls();
+    resetTransient();
+    refreshAll();
+    updatePresetActive();
+    toast('已加载场景：' + E.PRESETS[id].name);
+  }
+
+  /* ---------------- 参数面板 ---------------- */
+
+  function buildDiseaseControls() {
+    const box = els.diseaseControls;
+    clearNode(box);
+    const d = sim.config.disease;
+
+    addRange(box, {
+      label: '基本传染数 R₀', value: d.r0, min: 0.5, max: 18, step: 0.1,
+      format: function (v) { return v.toFixed(1); },
+      hint: '完全易感人群中，一个感染者平均传染的人数。大于 1 才会持续流行。',
+      onInput: function (v) { d.r0 = v; }
+    });
+    addRange(box, {
+      label: '潜伏期', value: d.incubation, min: 1, max: 21, step: 0.5,
+      format: function (v) { return v.toFixed(1) + ' 天'; },
+      hint: '感染到具备传染性之间的时间。潜伏期越长，疫情越隐蔽。',
+      onInput: function (v) { d.incubation = v; }
+    });
+    addRange(box, {
+      label: '传染期', value: d.infectious, min: 2, max: 30, step: 0.5,
+      format: function (v) { return v.toFixed(1) + ' 天'; },
+      hint: '具备传染性的平均时长。R₀ 由传播概率与传染期共同决定。',
+      onInput: function (v) { d.infectious = v; }
+    });
+    addRange(box, {
+      label: '名义病死率', value: d.cfr * 100, min: 0.1, max: 80, step: 0.1,
+      format: function (v) { return v.toFixed(v < 1 ? 2 : 1) + '%'; },
+      hint: '有医疗时的基准值。实际病死率会随年龄、气温与床位紧张程度变化。',
+      onInput: function (v) { d.cfr = v / 100; }
+    });
+
+    const adv = document.createElement('details');
+    adv.className = 'more-params';
+    const advSum = document.createElement('summary');
+    advSum.textContent = '更多参数 · 温度 / 无症状 / 免疫 / 年龄';
+    adv.appendChild(advSum);
+    const advBox = document.createElement('div');
+    advBox.className = 'controls';
+    advBox.style.marginTop = '10px';
+    adv.appendChild(advBox);
+    box.appendChild(adv);
+
+    addRange(advBox, {
+      label: '无症状比例', value: d.asymptomatic * 100, min: 0, max: 60, step: 1,
+      format: function (v) { return v.toFixed(0) + '%'; },
+      hint: '无症状者传播力约为有症状者的一半，且不会被隔离。',
+      onInput: function (v) { d.asymptomatic = v / 100; }
+    });
+    addRange(advBox, {
+      label: '温度敏感度', value: d.tempSens, min: 0, max: 1, step: 0.01,
+      format: function (v) { return (v * 100).toFixed(0) + '%'; },
+      hint: '气温偏离最适温度时传播力变化的幅度。0 表示完全不受温度影响。',
+      onInput: function (v) { d.tempSens = v; }
+    });
+    addRange(advBox, {
+      label: '最适传播温度', value: d.tempOpt, min: -5, max: 38, step: 1,
+      format: function (v) { return v.toFixed(0) + '°C'; },
+      hint: '越接近这个温度，传播效率越高；偏离越远，传播越弱。',
+      onInput: function (v) { d.tempOpt = v; }
+    });
+
+    const lifeTime = d.immunityDays === Infinity;
+    const imm = addRange(advBox, {
+      label: '免疫持续', value: lifeTime ? 365 : d.immunityDays,
+      min: 60, max: 1095, step: 30,
+      format: function (v) { return v >= 365 ? (v / 365).toFixed(1) + ' 年' : Math.round(v) + ' 天'; },
+      hint: '免疫消退后，康复者会重新变为易感者，可能带来第二波。',
+      disabled: lifeTime,
+      onInput: function (v) {
+        if (d.immunityDays === Infinity) return;
+        d.immunityDays = v;
+      }
+    });
+    addSwitch(advBox, {
+      title: '终身免疫', desc: '康复后不再感染',
+      checked: lifeTime,
+      onChange: function (on) {
+        d.immunityDays = on ? Infinity : Math.max(60, parseFloat(imm.input.value));
+        imm.setDisabled(on);
+      }
+    });
+
+    const ageSel = addSelect(advBox, {
+      label: '年龄风险曲线',
+      value: d.ageProfile,
+      options: Object.keys(E.AGE_PROFILES).map(function (k) {
+        return { value: k, label: E.AGE_PROFILES[k].name };
+      }),
+      hint: E.AGE_PROFILES[d.ageProfile] ? E.AGE_PROFILES[d.ageProfile].note : '',
+      onChange: function (v) {
+        d.ageProfile = v;
+        ageSel.hint.textContent = E.AGE_PROFILES[v] ? E.AGE_PROFILES[v].note : '';
+      }
+    });
+  }
+
+  function refreshEnvViews() {
+    sim.refresh();
+    refreshHUD();
+    updateCityTemps();
+    chart.lastKey = '';
+  }
+
+  function buildEnvControls() {
+    const climateBox = els.envClimateControls;
+    const societyBox = els.envSocietyControls;
+    clearNode(climateBox);
+    clearNode(societyBox);
+    const env = sim.config.env;
+
+    addRange(climateBox, {
+      label: '基础气温', value: env.baseTemp, min: -10, max: 38, step: 0.5,
+      format: function (v) { return v.toFixed(1) + '°C'; },
+      hint: '六城邦的基准温度。北方城市更冷，南方城市更热。',
+      onInput: function (v) { env.baseTemp = v; refreshEnvViews(); }
+    });
+    addRange(climateBox, {
+      label: '季节振幅', value: env.seasonAmp, min: 0, max: 15, step: 0.5,
+      format: function (v) { return '±' + v.toFixed(1) + '°C'; },
+      hint: '温度随季节上下摆动的幅度。0 表示没有季节变化。',
+      onInput: function (v) { env.seasonAmp = v; refreshEnvViews(); }
+    });
+    addRange(climateBox, {
+      label: '季节周期', value: env.seasonPeriod, min: 60, max: 365, step: 5,
+      format: function (v) { return Math.round(v) + ' 天'; },
+      hint: '一个完整季节循环的长度。越短，冷暖交替来得越快。',
+      onInput: function (v) { env.seasonPeriod = v; refreshEnvViews(); }
+    });
+
+    addRange(societyBox, {
+      label: '人口密度 / 接触频率', value: env.density, min: 0.5, max: 2.2, step: 0.05,
+      format: function (v) { return '×' + v.toFixed(2); },
+      hint: '直接缩放每日接触人数，是改变有效 R₀ 最直接的社会杠杆。',
+      onInput: function (v) { env.density = v; refreshEnvViews(); }
+    });
+    addRange(societyBox, {
+      label: '城际流动', value: env.travelRate, min: 0.001, max: 0.02, step: 0.0005,
+      format: function (v) { return (v * 100).toFixed(2) + '% / 天'; },
+      hint: '每人每天跨城出行的概率。病毒会沿着这些路线跳到新城市。',
+      onInput: function (v) { env.travelRate = v; }
+    });
+    addRange(societyBox, {
+      label: '重症床位', value: env.bedsPer10k, min: 10, max: 600, step: 10,
+      format: function (v) { return Math.round(v) + ' / 万人'; },
+      hint: '每万人可用的重症床位。床位耗尽后，重症病死率会显著上升。',
+      onInput: function (v) { env.bedsPer10k = v; refreshEnvViews(); }
+    });
+
+    const pops = [
+      { value: 1200, label: '1,200 人 · 小镇' },
+      { value: 2000, label: '2,000 人 · 小城' },
+      { value: 3200, label: '3,200 人 · 标准' },
+      { value: 5000, label: '5,000 人 · 大城' },
+      { value: 8000, label: '8,000 人 · 都市' }
+    ];
+    addSelect(societyBox, {
+      label: '总人口规模',
+      value: env.population,
+      options: pops,
+      hint: '改变人口会重建整个沙盘并重新开始。',
+      onChange: function (v) { changePopulation(Number(v)); }
+    });
+  }
+
+  function changePopulation(n) {
+    sim.config.env.population = n;
+    sim.setPopulation(n);
+    app.acc = 0;
+    chart.pointerLeave();
+    chart.lastKey = '';
+    map.hover = -1;
+    map.pulses = [];
+    resetTransient();
+    refreshAll();
+    toast('城市网络已重建：' + fmt(n) + ' 人');
+  }
+
+  function buildInterventions() {
+    const box = els.interventionControls;
+    clearNode(box);
+    const I = sim.config.interventions;
+
+    addSwitch(box, {
+      title: '口罩与卫生',
+      desc: '每次接触的传播概率 −38%',
+      checked: I.masks,
+      onChange: function (on) {
+        I.masks = on;
+        sim.log('info', on ? '口罩与卫生措施启动' : '口罩与卫生措施解除',
+          on ? '公共场所佩戴口罩、加强通风与手部清洁，接触传播效率下降。' : '社会恢复常态接触。');
+        refreshLog();
+        refreshHUD();
+        toast(on ? '口罩与卫生：传播概率 −38%' : '口罩与卫生措施已解除');
+      }
+    });
+
+    const iso = addSwitch(box, {
+      title: '病例隔离',
+      desc: '有症状者居家，传播力 −92%',
+      checked: I.isolate,
+      onChange: function (on) {
+        I.isolate = on;
+        isoSub.wrap.classList.toggle('show', on);
+        sim.log('info', on ? '病例隔离启动' : '病例隔离解除',
+          on ? '有症状者被要求居家，接触人数大幅下降。' : '不再强制隔离有症状者。');
+        refreshLog();
+        toast(on ? '病例隔离已启动' : '病例隔离已解除');
+      }
+    });
+    const isoSub = addRange(box, {
+      label: '隔离覆盖率', value: I.isolateCoverage * 100, min: 20, max: 95, step: 5,
+      format: function (v) { return Math.round(v) + '%'; },
+      hint: '有症状者中被及时隔离的比例。',
+      sub: true,
+      onInput: function (v) { I.isolateCoverage = v / 100; }
+    });
+    isoSub.wrap.classList.toggle('show', I.isolate);
+
+    addSwitch(box, {
+      title: '旅行限制',
+      desc: '城际流动 −90%',
+      checked: I.travelBan,
+      onChange: function (on) {
+        I.travelBan = on;
+        sim.log('info', on ? '旅行限制启动' : '旅行限制解除',
+          on ? '城际交通大幅削减，病毒跨城传播的速度被拖慢。' : '城际交通恢复。');
+        refreshLog();
+        toast(on ? '旅行限制：城际流动 −90%' : '旅行限制已解除');
+      }
+    });
+
+    const dist = addSwitch(box, {
+      title: '社交距离',
+      desc: '减少日常接触人数',
+      checked: I.distancing,
+      onChange: function (on) {
+        I.distancing = on;
+        distSub.wrap.classList.toggle('show', on);
+        sim.log('info', on ? '社交距离措施启动' : '社交距离措施解除',
+          on ? '减少聚会与日常接触，接触人数随强度下降。' : '社会接触恢复常态。');
+        refreshLog();
+        toast(on ? '社交距离已启动' : '社交距离已解除');
+      }
+    });
+    const distSub = addRange(box, {
+      label: '接触削减强度', value: I.distanceStrength * 100, min: 20, max: 90, step: 5,
+      format: function (v) { return '−' + Math.round(v) + '%'; },
+      hint: '削减后每日接触人数 = 原接触人数 × (1 − 强度)。',
+      sub: true,
+      onInput: function (v) { I.distanceStrength = v / 100; }
+    });
+    distSub.wrap.classList.toggle('show', I.distancing);
+
+    addSwitch(box, {
+      title: '疫苗接种',
+      desc: '每天为易感者接种，约 90% 有效',
+      checked: I.vaccine,
+      onChange: function (on) {
+        I.vaccine = on;
+        vacSub.wrap.classList.toggle('show', on);
+        sim.log('info', on ? '疫苗接种启动' : '疫苗接种停止',
+          on ? '易感者按每日速度接种，成功者获得免疫。' : '接种计划暂停。');
+        refreshLog();
+        toast(on ? '疫苗接种已启动' : '疫苗接种已暂停');
+      }
+    });
+    const vacSub = addRange(box, {
+      label: '接种速度', value: I.vaccineRate * 100, min: 0.1, max: 1.5, step: 0.1,
+      format: function (v) { return v.toFixed(1) + '% / 天'; },
+      hint: '每天为总人口的这一比例接种。产能有限，无法瞬间铺开。',
+      sub: true,
+      onInput: function (v) { I.vaccineRate = v / 100; }
+    });
+    vacSub.wrap.classList.toggle('show', I.vaccine);
+
+    addSwitch(box, {
+      title: '医疗扩容',
+      desc: '重症床位 ×2',
+      checked: I.hospitalBoost,
+      onChange: function (on) {
+        I.hospitalBoost = on;
+        sim.refresh();
+        refreshHUD();
+        sim.log('info', on ? '医疗扩容启动' : '医疗扩容结束',
+          on ? '临时病区与重症床位翻倍，超载风险下降。' : '临时医疗资源撤回。');
+        refreshLog();
+        toast(on ? '医疗容量已翻倍' : '医疗扩容已结束');
+      }
+    });
+  }
+
+  function buildAdvanced() {
+    const box = els.advancedControls;
+    clearNode(box);
+    addSwitch(box, {
+      title: '病毒变异',
+      desc: '每 55 天出现新变异株：传播力 +12%，25% 康复者失去免疫',
+      checked: sim.config.advanced.mutation,
+      onChange: function (on) {
+        sim.config.advanced.mutation = on;
+        sim.log('warn', on ? '变异监测开启' : '变异监测关闭',
+          on ? '新变异株可能突破既有免疫，制造新的传播波峰。' : '病毒保持当前抗原特征。');
+        refreshLog();
+        toast(on ? '变异机制已开启' : '变异机制已关闭');
+      }
+    });
+  }
+
+  function buildAllControls() {
+    buildDiseaseControls();
+    buildEnvControls();
+    buildInterventions();
+    buildAdvanced();
+    updateCityTemps();
+  }
+
+  /* ---------------- 顶栏 / HUD ---------------- */
+
+  function setRunning(run) {
+    app.running = !!run;
+    els.playIcon.textContent = app.running ? '❚❚' : '▶';
+    els.playText.textContent = app.running ? '暂停' : '继续';
+    els.playBtn.setAttribute('aria-label', app.running ? '暂停模拟' : '继续模拟');
+  }
+
+  function toggleRunning() {
+    setRunning(!app.running);
+    if (!app.running) toast('已暂停 · 空格继续');
+  }
+
+  function setSpeed(speed) {
+    app.speed = speed;
+    els.speeds.querySelectorAll('button').forEach(function (b) {
+      b.classList.toggle('active', Number(b.dataset.speed) === speed);
+    });
+  }
+
+  function refreshTitle() {
+    const p = E.PRESETS[sim.config.presetId] || E.PRESETS.custom;
+    els.scenarioTitle.textContent = p.name;
+    els.scenarioEra.textContent = p.era;
+    document.title = p.name + ' · 瘟疫模拟';
+  }
+
+  function updateClock() {
+    els.dayNum.textContent = sim.day;
+    const n = sim.cities.length || 1;
+    let sum = 0;
+    sim.cities.forEach(function (c) { sum += c.temp; });
+    const avg = sum / n;
+    els.clockSub.textContent = '平均气温 ' + avg.toFixed(1) + '°C · ' + seasonName(avg);
+  }
+
+  function updateCityTemps() {
+    if (!els.cityTemps) return;
+    els.cityTemps.innerHTML = sim.cities.map(function (c) {
+      const cls = c.temp < 8 ? 'cold' : (c.temp > 26 ? 'hot' : '');
+      return '<div class="city-temp ' + cls + '"><span>' + c.name + '</span><b>' + c.temp.toFixed(1) + '°</b></div>';
+    }).join('');
+  }
+
+  function refreshHUD() {
+    const st = sim.stats;
+    if (!st) return;
+    els.statActive.textContent = fmt(st.i);
+    els.statActiveSub.textContent = '潜伏 ' + fmt(st.e) + ' · 隔离 ' + fmt(st.isolated);
+    els.statEver.textContent = fmt(st.everInfected);
+    els.statEverSub.textContent = '感染率 ' + pct(st.attackRate);
+    els.statDeaths.textContent = fmt(st.totalDeaths);
+    els.statDeathsSub.textContent = '观测病死率 ' + pct(st.cfrObserved, 1) +
+      (st.everInfected > 0 && st.everInfected < 30 ? ' · 样本尚小' : '');
+    els.statBedsNum.textContent = fmt(st.bedsUsed);
+    els.statBedsCap.textContent = ' / ' + fmt(st.capacity);
+    const ratio = st.capacity > 0 ? st.bedsUsed / st.capacity : 0;
+    els.bedBarFill.style.width = Math.min(100, ratio * 100).toFixed(1) + '%';
+    els.bedBarFill.className = ratio > 1 ? 'over' : (ratio > 0.75 ? 'warn' : '');
+    els.statImmune.textContent = fmt(st.r);
+    els.statImmuneSub.textContent = '已接种 ' + fmt(st.vaccinated) + ' 剂';
+    els.statRt.textContent = st.rt == null ? '—' : st.rt.toFixed(2);
+    els.statRt.className = 'stat-value ' + (st.rt == null ? 'accent-amber' : (st.rt > 1.15 ? 'accent-red' : (st.rt >= 0.95 ? 'accent-amber' : 'accent-teal')));
+    if (st.i + st.e === 0 && st.everInfected > 0) {
+      els.statRtSub.textContent = '无现存感染者 · 传播链中断';
+    } else if (st.rt == null) {
+      els.statRtSub.textContent = st.everInfected > 0 ? '病例太少，暂无法估计' : '等待传播链建立';
+    } else {
+      els.statRtSub.textContent = st.rt > 1.15
+        ? '传播加速 · 每个病例传染 >1 人'
+        : (st.rt >= 0.95 ? '临界传播 · 疫情趋于平稳' : '传播收敛 · 每个病例传染 <1 人');
+    }
+    els.logCount.textContent = sim.events.length + ' 条';
+    els.mapMeta.textContent = '六城邦 · ' + fmt(sim.initialTotal || sim.config.env.population) + ' 人 · 现存 ' + fmt(st.i) + ' 例';
+    updateClock();
+  }
+
+  /* ---------------- 日志 ---------------- */
+
+  function refreshLog() {
+    const events = sim.events;
+    if (!events.length) {
+      els.logList.innerHTML = '<div class="log-empty">等待第一个事件……</div>';
+      logRendered = 0;
+      logFirstId = null;
+      return;
+    }
+    if (logFirstId !== events[0].id) {
+      els.logList.innerHTML = '';
+      logRendered = 0;
+      logFirstId = events[0].id;
+    }
+    if (events.length === logRendered) return;
+    const nearBottom = els.logList.scrollHeight - els.logList.scrollTop - els.logList.clientHeight < 60;
+    const frag = document.createDocumentFragment();
+    for (let i = logRendered; i < events.length; i++) {
+      const ev = events[i];
+      const item = document.createElement('div');
+      item.className = 'log-item ' + (ev.type || 'info');
+      const day = document.createElement('div');
+      day.className = 'log-day';
+      day.textContent = 'D' + ev.day;
+      const body = document.createElement('div');
+      const title = document.createElement('div');
+      title.className = 'log-title';
+      title.textContent = ev.title;
+      const detail = document.createElement('div');
+      detail.className = 'log-detail';
+      detail.textContent = ev.detail;
+      body.appendChild(title);
+      body.appendChild(detail);
+      item.appendChild(day);
+      item.appendChild(body);
+      frag.appendChild(item);
+    }
+    els.logList.appendChild(frag);
+    logRendered = events.length;
+    while (els.logList.children.length > 80) els.logList.removeChild(els.logList.firstChild);
+    els.logCount.textContent = events.length + ' 条';
+    if (nearBottom) els.logList.scrollTop = els.logList.scrollHeight;
+  }
+
+  /* ---------------- 地图交互 ---------------- */
+
+  function onMapMove(e) {
+    const idx = map.cityAt(e.clientX, e.clientY);
+    map.hover = idx;
+    els.mapCanvas.style.cursor = idx >= 0 ? 'pointer' : 'crosshair';
+    if (idx < 0) {
+      els.cityTip.hidden = true;
+      return;
+    }
+    const c = sim.cities[idx];
+    const ratio = c.capacity > 0 ? c.bedsUsed / c.capacity : 0;
+    els.cityTip.innerHTML =
+      '<div class="tip-name">' + c.name + '<span>' + c.en + '</span></div>' +
+      '<div class="tip-row"><span>气温 · 气候</span><b>' + c.temp.toFixed(1) + '°C · ' + c.climate + '</b></div>' +
+      '<div class="tip-row"><span>现存感染</span><b>' + fmt(c.active) + '</b></div>' +
+      '<div class="tip-row"><span>累计感染</span><b>' + fmt(c.everInfected) + '</b></div>' +
+      '<div class="tip-row"><span>死亡</span><b>' + fmt(c.deaths) + '</b></div>' +
+      '<div class="tip-row"><span>重症床位</span><b>' + fmt(c.bedsUsed) + ' / ' + fmt(c.capacity) + '</b></div>' +
+      '<div class="tip-note' + (ratio > 1 ? ' warn' : '') + '">' +
+        (ratio > 1 ? '医疗系统超载，重症病死率上升。' : '点击城市 · 投放 8 例潜伏期感染者') +
+      '</div>';
+    els.cityTip.hidden = false;
+
+    const rect = els.mapPanel.getBoundingClientRect();
+    let x = e.clientX - rect.left + 18;
+    let y = e.clientY - rect.top + 16;
+    const tw = els.cityTip.offsetWidth;
+    const th = els.cityTip.offsetHeight;
+    if (x + tw > rect.width - 8) x = e.clientX - rect.left - tw - 18;
+    if (y + th > rect.height - 8) y = e.clientY - rect.top - th - 14;
+    els.cityTip.style.left = Math.max(8, x) + 'px';
+    els.cityTip.style.top = Math.max(8, y) + 'px';
+  }
+
+  function onMapLeave() {
+    map.hover = -1;
+    els.cityTip.hidden = true;
+  }
+
+  function onMapClick(e) {
+    const idx = map.cityAt(e.clientX, e.clientY);
+    if (idx < 0) return;
+    const c = sim.cities[idx];
+    const n = sim.seedCity(idx, 8);
+    if (!n) {
+      toast(c.name + ' 已没有易感者');
+      return;
+    }
+    sim.refresh();
+    map.pulse(idx);
+    chart.lastKey = '';
+    refreshHUD();
+    refreshLog();
+    updateCityTemps();
+    toast('向 ' + c.name + ' 投放了 ' + n + ' 例感染者');
+  }
+
+  /* ---------------- 图表交互 ---------------- */
+
+  function onChartMove(e) {
+    chart.pointerMove(e);
+    chart.draw(sim);
+  }
+
+  function onChartLeave() {
+    chart.pointerLeave();
+    chart.draw(sim);
+  }
+
+  /* ---------------- 状态重置 ---------------- */
+
+  function resetTransient() {
+    logRendered = 0;
+    logFirstId = null;
+    els.logList.innerHTML = '';
+    els.cityTip.hidden = true;
+    chart.pointerLeave();
+    chart.hover = -1;
+    chart.lastKey = '';
+    map.hover = -1;
+    map.pulses = [];
+    app.acc = 0;
+  }
+
+  function refreshAll() {
+    sim.refresh();
+    refreshTitle();
+    updateDossier();
+    updatePresetActive();
+    refreshHUD();
+    refreshLog();
+    updateCityTemps();
+    updateClock();
+    chart.lastKey = '';
+    chart.draw(sim);
+  }
+
+  /* ---------------- 顶栏与按钮 ---------------- */
+
+  function bindTopbar() {
+    els.playBtn.addEventListener('click', toggleRunning);
+    els.resetBtn.addEventListener('click', function () {
+      sim.reset();
+      resetTransient();
+      refreshAll();
+      toast('已重新开始 · 第 0 天');
+    });
+    els.speeds.addEventListener('click', function (e) {
+      const btn = e.target.closest('button[data-speed]');
+      if (!btn) return;
+      setSpeed(Number(btn.dataset.speed));
+    });
+    document.addEventListener('keydown', function (e) {
+      const tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'select' || tag === 'textarea' || tag === 'button') return;
+      if (e.code === 'Space') {
+        e.preventDefault();
+        toggleRunning();
+      } else if (e.key === 'r' || e.key === 'R') {
+        sim.reset();
+        resetTransient();
+        refreshAll();
+        toast('已重新开始');
+      }
+    });
+  }
+
+  function bindTabs() {
+    document.querySelectorAll('.tab').forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        document.querySelectorAll('.tab').forEach(function (t) {
+          t.classList.toggle('active', t === tab);
+          t.setAttribute('aria-selected', t === tab ? 'true' : 'false');
+        });
+        document.querySelectorAll('.tab-panel').forEach(function (p) {
+          p.classList.toggle('active', p.dataset.panel === tab.dataset.tab);
+        });
+      });
+    });
+  }
+
+  function bindMap() {
+    els.mapCanvas.addEventListener('pointermove', onMapMove);
+    els.mapCanvas.addEventListener('pointerleave', onMapLeave);
+    els.mapCanvas.addEventListener('click', onMapClick);
+  }
+
+  function bindChart() {
+    els.chartCanvas.addEventListener('pointermove', onChartMove);
+    els.chartCanvas.addEventListener('pointerleave', onChartLeave);
+  }
+
+  function bindHelp() {
+    els.helpBtn.addEventListener('click', function () { els.helpDialog.showModal(); });
+    if (els.helpBtnMobile) els.helpBtnMobile.addEventListener('click', function () { els.helpDialog.showModal(); });
+    els.helpDialog.addEventListener('click', function (e) {
+      if (e.target === els.helpDialog) els.helpDialog.close();
+    });
+  }
+
+  function exportCSV() {
+    if (!sim.history.length) {
+      toast('还没有可导出的数据');
+      return;
+    }
+    const header = ['day', 'susceptible', 'exposed', 'infectious', 'recovered', 'deaths', 'new_infections', 'beds_used', 'capacity', 'rt', 'avg_temp'];
+    const lines = [header.join(',')];
+    sim.history.forEach(function (h) {
+      lines.push([
+        h.day, h.s, h.e, h.i, h.r, h.d, h.newInfections,
+        Math.round(h.bedsUsed), Math.round(h.capacity),
+        h.rt == null ? '' : h.rt.toFixed(3), (h.temp || 0).toFixed(2)
+      ].join(','));
+    });
+    const blob = new Blob(['\ufeff' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'plague-' + sim.config.presetId + '-' + sim.day + 'd.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+    toast('已导出 ' + sim.history.length + ' 天的数据');
+  }
+
+  function clearInterventions() {
+    const I = sim.config.interventions;
+    const any = I.masks || I.isolate || I.travelBan || I.distancing || I.vaccine || I.hospitalBoost || sim.config.advanced.mutation;
+    if (!any) {
+      toast('当前没有生效中的干预');
+      return;
+    }
+    I.masks = false;
+    I.isolate = false;
+    I.travelBan = false;
+    I.distancing = false;
+    I.vaccine = false;
+    I.hospitalBoost = false;
+    sim.config.advanced.mutation = false;
+    sim.refresh();
+    sim.log('info', '全部干预解除', '所有公共卫生措施同时撤回。');
+    buildInterventions();
+    buildAdvanced();
+    refreshHUD();
+    refreshLog();
+    toast('已解除全部干预');
+  }
+
+  function bindActions() {
+    els.exportBtn.addEventListener('click', exportCSV);
+    els.clearActBtn.addEventListener('click', clearInterventions);
+  }
+
+  /* ---------------- 初始化 ---------------- */
+
+  function init(_app) {
+    app = _app;
+    sim = app.sim;
+    map = app.map;
+    chart = app.chart;
+
+    els = {
+      presetGrid: $('presetGrid'),
+      dossier: $('dossier'),
+      diseaseControls: $('diseaseControls'),
+      envClimateControls: $('envClimateControls'),
+      envSocietyControls: $('envSocietyControls'),
+      interventionControls: $('interventionControls'),
+      advancedControls: $('advancedControls'),
+      cityTemps: $('cityTemps'),
+      scenarioTitle: $('scenarioTitle'),
+      scenarioEra: $('scenarioEra'),
+      dayNum: $('dayNum'),
+      clockSub: $('clockSub'),
+      playBtn: $('playBtn'),
+      playIcon: $('playIcon'),
+      playText: $('playText'),
+      resetBtn: $('resetBtn'),
+      speeds: $('speeds'),
+      statActive: $('statActive'),
+      statActiveSub: $('statActiveSub'),
+      statEver: $('statEver'),
+      statEverSub: $('statEverSub'),
+      statDeaths: $('statDeaths'),
+      statDeathsSub: $('statDeathsSub'),
+      statBeds: $('statBeds'),
+      statBedsNum: $('statBedsNum'),
+      statBedsCap: $('statBedsCap'),
+      bedBarFill: $('bedBarFill'),
+      statImmune: $('statImmune'),
+      statImmuneSub: $('statImmuneSub'),
+      statRt: $('statRt'),
+      statRtSub: $('statRtSub'),
+      mapPanel: $('mapPanel'),
+      mapCanvas: $('map'),
+      mapMeta: $('mapMeta'),
+      cityTip: $('cityTip'),
+      chartCanvas: $('chart'),
+      chartBody: $('chartBody'),
+      chartTip: $('chartTip'),
+      logList: $('logList'),
+      logCount: $('logCount'),
+      toast: $('toast'),
+      helpBtn: $('helpBtn'),
+      helpBtnMobile: $('helpBtnMobile'),
+      helpDialog: $('helpDialog'),
+      exportBtn: $('exportBtn'),
+      clearActBtn: $('clearActBtn')
+    };
+
+    buildPresets();
+    dossierOpen = window.innerHeight >= 860;
+    els.dossier.open = dossierOpen;
+    els.dossier.addEventListener('toggle', function () {
+      dossierOpen = els.dossier.open;
+    });
+    bindTopbar();
+    bindTabs();
+    bindMap();
+    bindChart();
+    bindHelp();
+    bindActions();
+    buildAllControls();
+    updateDossier();
+    updatePresetActive();
+    setRunning(app.running);
+    setSpeed(app.speed);
+    resetTransient();
+    refreshAll();
+    if (!app.running) {
+      toast('已按系统设置暂停 · 按空格开始');
+    } else {
+      setTimeout(function () { toast('点击城市可投放病例 · 空格暂停'); }, 900);
+    }
+  }
+
+  global.PS = global.PS || {};
+  global.PS.UI = {
+    init: init,
+    onDay: function () {
+      refreshHUD();
+      refreshLog();
+      updateCityTemps();
+    },
+    setRunning: setRunning,
+    toggleRunning: toggleRunning,
+    toast: toast
+  };
+})(window);
+
+</script>
+<script>
+/* ============================================================
+   瘟疫 · 传播模拟 — 启动与主循环
+   ============================================================ */
+(function () {
+  'use strict';
+
+  const E = window.PlagueEngine;
+
+  const sim = new E.Simulation(E.makeConfig('flu1918'));
+  const seedParam = new URLSearchParams(window.location.search).get('seed');
+  if (seedParam && /^\d+$/.test(seedParam)) sim.reset(Number(seedParam));
+  const mapCanvas = document.getElementById('map');
+  const chartCanvas = document.getElementById('chart');
+  const chartTip = document.getElementById('chartTip');
+
+  const map = new PS.MapRenderer(mapCanvas, function () { return sim; });
+  const chart = new PS.ChartRenderer(chartCanvas, chartTip);
+  chart.getSim = function () { return sim; };
+
+  const reducedMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const app = {
+    sim: sim,
+    map: map,
+    chart: chart,
+    speed: 1,
+    running: !reducedMotion,
+    acc: 0
+  };
+  window.PS.app = app;
+
+  PS.UI.init(app);
+
+  const panel = document.getElementById('mapPanel');
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () { map.resize(); }).observe(panel);
+  }
+  window.addEventListener('resize', function () { map.resize(); });
+
+  let last = performance.now();
+
+  function frame(now) {
+    const dt = Math.min(0.08, (now - last) / 1000);
+    last = now;
+
+    if (app.running) {
+      sim.updateMotion(dt);
+      app.acc += dt * app.speed * 2;
+      let steps = 0;
+      while (app.acc >= 1 && steps < 32) {
+        sim.stepDay();
+        app.acc -= 1;
+        steps++;
+      }
+      if (steps) PS.UI.onDay();
+    }
+
+    map.draw(now);
+    chart.draw(sim);
+    requestAnimationFrame(frame);
+  }
+
+  requestAnimationFrame(frame);
+})();
+
+</script>
+</body>
+</html>
